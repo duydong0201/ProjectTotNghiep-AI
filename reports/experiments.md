@@ -21,3 +21,19 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-09-21 | baseline_v0_bot_20260921-145400 | v0 | opponent | action | decision_tree | dev | 44070 | 13392 | 0.451 | 0.134 | |
 | 2026-09-21 | baseline_v0_bot_20260921-145400 | v0 | opponent | action | random_forest | dev | 44070 | 13392 | 0.610 | 0.161 | |
 | 2026-09-21 | baseline_v0_bot_20260921-145400 | v0 | opponent | action | knn | dev | 44070 | 13392 | 0.994 | 0.199 | |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | move | majority | dev | 57462 | 3175 | 0.680 | 0.270 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | move | decision_tree | dev | 57462 | 3175 | 0.730 | 0.645 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | move | random_forest | dev | 57462 | 3175 | 0.746 | 0.668 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | move | knn | dev | 57462 | 3175 | 0.743 | 0.616 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | action | majority | dev | 57462 | 3175 | 0.994 | 0.249 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | action | decision_tree | dev | 57462 | 3175 | 0.473 | 0.174 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | action | random_forest | dev | 57462 | 3175 | 0.685 | 0.218 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150821 | v0 | opponent | action | knn | dev | 57462 | 3175 | 0.994 | 0.249 | Dev = 4 trận, 1 trận chiếm 78%, thiếu SpikeLight -> KHÔNG đáng tin, xem run 150932 (CV) |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | move | majority | cv | 60637 | 60637 | 0.657 ± 0.029 | 0.264 ± 0.007 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | move | decision_tree | cv | 60637 | 60637 | 0.583 ± 0.049 | 0.529 ± 0.039 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | move | random_forest | cv | 60637 | 60637 | 0.605 ± 0.049 | 0.551 ± 0.040 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | move | knn | cv | 60637 | 60637 | 0.687 ± 0.018 | 0.537 ± 0.018 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | action | majority | cv | 60637 | 60637 | 0.995 ± 0.000 | 0.199 ± 0.000 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | action | decision_tree | cv | 60637 | 60637 | 0.583 ± 0.065 | 0.162 ± 0.012 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | action | random_forest | cv | 60637 | 60637 | 0.674 ± 0.037 | 0.175 ± 0.008 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
+| 2026-09-21 | baseline_v0_bot_20260921-150932 | v0 | opponent | action | knn | cv | 60637 | 60637 | 0.995 ± 0.000 | 0.199 ± 0.000 | CV 5 fold trên 31 trận (ADR-004); macro-F1 chỉ tính lớp có mặt |
