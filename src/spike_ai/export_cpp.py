@@ -53,8 +53,11 @@ def predict_proba_from_tables(tables: list[dict], x) -> np.ndarray:
     for tb in tables:
         node = 0
         while tb["left"][node] != -1:
-            node = tb["left"][node] if float(np.float32(x[tb["feature"][node]])) <= tb["threshold"][node] \
+            node = (
+                tb["left"][node]
+                if float(np.float32(x[tb["feature"][node]])) <= tb["threshold"][node]
                 else tb["right"][node]
+            )
         out += tb["proba"][node]
     return out / len(tables)
 
@@ -103,8 +106,9 @@ def render_header(bundle: dict, tables: list[dict]) -> str:
 
     for i, tb in enumerate(tables):
         lines.append(f"constexpr Node kTree{i}[] = {{")
-        for l, r, f, th in zip(tb["left"], tb["right"], tb["feature"], tb["threshold"]):
-            lines.append(f"    {{{l}, {r}, {f if l != -1 else 0}, {_fmt(th) if l != -1 else '0.0'}}},")
+        for left, right, feat, th in zip(tb["left"], tb["right"], tb["feature"], tb["threshold"], strict=True):
+            is_leaf = left == -1
+            lines.append(f"    {{{left}, {right}, {0 if is_leaf else feat}, {'0.0' if is_leaf else _fmt(th)}}},")
         lines.append("};")
         lines.append(f"constexpr float kTree{i}Proba[][kNumClasses] = {{")
         for p in tb["proba"]:
@@ -152,7 +156,7 @@ def render_header(bundle: dict, tables: list[dict]) -> str:
         "    return best;",
         "}",
         "",
-        "// ---- Golden test: vector lấy từ tập test, kết quả do Python (sklearn) tính ----",
+        "// ---- Golden test: vector lấy từ tập dev, kết quả do Python (sklearn) tính ----",
         f"constexpr int kNumGolden = {len(bundle['golden_X'])};",
         "constexpr float kGoldenX[kNumGolden][kNumFeatures] = {",
         *["    {" + ", ".join(f"{v:.9g}f" for v in row) + "}," for row in bundle["golden_X"]],
@@ -187,7 +191,7 @@ def export(model_path: str | Path, out_dir: str | Path) -> Path:
     tables = [tree_tables(t) for t in _trees(bundle["model"])]
 
     # Tự kiểm tra: thuật toán duyệt bảng phải cho cùng xác suất với sklearn
-    for x, expected in zip(bundle["golden_X"], bundle["golden_proba"]):
+    for x, expected in zip(bundle["golden_X"], bundle["golden_proba"], strict=True):
         got = predict_proba_from_tables(tables, x)
         if not np.allclose(got, expected, atol=GOLDEN_TOLERANCE):
             raise AssertionError(f"Bảng cây khác sklearn: {got} vs {expected}")
@@ -198,8 +202,10 @@ def export(model_path: str | Path, out_dir: str | Path) -> Path:
     out_path.write_text(render_header(bundle, tables), encoding="utf-8")
 
     n_nodes = sum(len(t["left"]) for t in tables)
-    print(f"Đã export {out_path} ({len(tables)} cây, {n_nodes} node, "
-          f"{out_path.stat().st_size / 1024:.0f} KB). Golden test Python: OK")
+    print(
+        f"Đã export {out_path} ({len(tables)} cây, {n_nodes} node, "
+        f"{out_path.stat().st_size / 1024:.0f} KB). Golden test Python: OK"
+    )
     return out_path
 
 

@@ -72,7 +72,7 @@ và chọn system tương ứng trong `GenerateIntent::update`.
 
 ### Golden test (bắt buộc mỗi lần cập nhật model)
 
-Mỗi header có hàm `RunGoldenTest()`, dùng 20 vector lấy từ tập test mà Python đã tính sẵn kết quả.
+Mỗi header có hàm `RunGoldenTest()`, dùng 20 vector lấy từ tập dev mà Python đã tính sẵn kết quả.
 Gọi một lần lúc khởi động (hoặc trong `Tests/`):
 
 ```cpp
@@ -84,7 +84,7 @@ Golden test chỉ kiểm tra **model**. Để kiểm tra **cách tính feature t
 
 ## 3. Checklist mỗi lần đưa model mới vào game
 
-- [ ] `pytest` pass ở repo AI
+- [ ] `scripts/check.ps1` PASS ở repo AI (trên nhánh đã merge vào `develop`)
 - [ ] Export: `python -m spike_ai.export_cpp --model ... --out exports/`
 - [ ] Copy file .h sang repo game, build thành công
 - [ ] `RunGoldenTest()` trả về true

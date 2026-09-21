@@ -6,7 +6,12 @@ data_dirs:
 # agent = nhân vật cần bắt chước: "opponent" = bot rule-based bên phải, "player" = người bên trái
 agent: opponent
 targets: [move, action]
-test_size: 0.2
+split:
+  group_by: match
+  dev_ratio: 0.2
+  holdout_ratio: 0.2
+  # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
+  salt: spike-ai-split-v1
 seed: 42
 models:
   majority: {}

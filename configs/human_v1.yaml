@@ -5,7 +5,13 @@ data_dirs:
   - data/raw/v1/human
 agent: player
 targets: [move, action]
-test_size: 0.2
+split:
+  # player: mỗi người chơi nằm trọn một tập -> đo khả năng tổng quát sang người mới
+  group_by: player
+  dev_ratio: 0.2
+  holdout_ratio: 0.2
+  # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
+  salt: spike-ai-split-v1
 seed: 42
 models:
   majority: {}

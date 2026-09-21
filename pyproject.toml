@@ -14,3 +14,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["notebooks", "exports", "models", "data"]
+
+[tool.ruff.lint]
+# E/W: lỗi style cơ bản, F: lỗi logic (biến chưa dùng, import thừa), I: sắp xếp import,
+# B: bug hay gặp (bugbear), UP: cú pháp Python hiện đại
+select = ["E", "W", "F", "I", "B", "UP"]

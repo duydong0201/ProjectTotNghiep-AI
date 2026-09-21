@@ -1,6 +1,6 @@
 """Xem nhanh dữ liệu trước khi train.
 
-    python scripts/inspect_data.py --config configs/baseline_v0.yaml
+python scripts/inspect_data.py --config configs/baseline_v0.yaml
 """
 
 import argparse
@@ -24,8 +24,10 @@ def main():
 
     frames = df.groupby("match_id").size()
     print(f"Schema {cfg['schema']} | agent {cfg['agent']}")
-    print(f"Số trận: {len(frames)} | tổng frame: {len(df)} | "
-          f"frame/trận: min {frames.min()}, trung bình {frames.mean():.0f}, max {frames.max()}")
+    print(
+        f"Số trận: {len(frames)} | tổng frame: {len(df)} | "
+        f"frame/trận: min {frames.min()}, trung bình {frames.mean():.0f}, max {frames.max()}"
+    )
 
     for target in cfg["targets"]:
         counts = y[target].value_counts()
