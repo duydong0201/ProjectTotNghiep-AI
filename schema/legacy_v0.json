@@ -1,0 +1,29 @@
+{
+  "schema_version": 0,
+  "description": "Format CSV hiện tại của game (MainScene::OpenLogFile). KHÔNG có thông tin bóng -> chỉ dùng để chạy thông pipeline.",
+  "constants": {
+    "NET_X": 1370.0
+  },
+  "raw_columns": [
+    "Frame",
+    "PlayerPosX",
+    "PlayerPosY",
+    "PlayerEvent",
+    "BotPosX",
+    "BotPosY",
+    "BotEvent"
+  ],
+  "event_values": ["None", "MoveLeft", "MoveRight", "Jump", "Spike", "Slide", "Serve", "Bump", "Set", "SpikeLight", "SpikeMedium", "SpikeStrong"],
+  "features": [
+    {"name": "self_x",           "description": "x của nhân vật đang học (đã lật sân nếu ở bên phải)"},
+    {"name": "self_y",           "description": "y của nhân vật đang học"},
+    {"name": "opp_x",            "description": "x của đối thủ (cùng hệ toạ độ đã lật)"},
+    {"name": "opp_y",            "description": "y của đối thủ"},
+    {"name": "dx_opp",           "description": "opp_x - self_x"},
+    {"name": "self_dist_to_net", "description": "NET_X - self_x"}
+  ],
+  "labels": {
+    "move":   {"values": [-1, 0, 1], "description": "-1 lùi xa lưới, 0 đứng, +1 tiến về lưới (trong hệ toạ độ đã lật)"},
+    "action": {"values": ["None", "Jump", "Spike", "Slide", "Serve", "Bump", "Set", "SpikeLight", "SpikeMedium", "SpikeStrong"]}
+  }
+}

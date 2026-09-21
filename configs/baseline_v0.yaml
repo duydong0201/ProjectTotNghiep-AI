@@ -1,0 +1,23 @@
+# GĐ1 - vòng mỏng end-to-end trên log CSV cũ (không có bóng -> model yếu là bình thường).
+run_name: baseline_v0_bot
+schema: v0
+data_dirs:
+  - data/raw/v0
+# agent = nhân vật cần bắt chước: "opponent" = bot rule-based bên phải, "player" = người bên trái
+agent: opponent
+targets: [move, action]
+test_size: 0.2
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 8
+    min_samples_leaf: 20
+    class_weight: balanced
+  random_forest:
+    n_estimators: 50
+    max_depth: 10
+    min_samples_leaf: 20
+    class_weight: balanced
+  knn:
+    n_neighbors: 15

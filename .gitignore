@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Dữ liệu và model: KHÔNG commit (dùng Google Drive / Git LFS / GitHub Releases)
+data/**
+!data/**/
+!data/**/.gitkeep
+models/**
+!models/.gitkeep
+exports/**
+!exports/.gitkeep
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

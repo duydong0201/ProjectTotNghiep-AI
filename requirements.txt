@@ -1,0 +1,17 @@
+# Core
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.4
+joblib>=1.3
+pyyaml>=6.0
+matplotlib>=3.8
+
+# Dev
+pytest>=8.0
+jupyter>=1.0
+
+# Tuỳ chọn cho GĐ4 trở đi (bỏ comment khi cần)
+# lightgbm>=4.3
+# torch>=2.3
+# skl2onnx>=1.16
+# onnxruntime>=1.18

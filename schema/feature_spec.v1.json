@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "status": "DRAFT - cần chốt với bạn làm game (xem docs/data_contract.md)",
+  "constants": {
+    "NET_X": 1370.0,
+    "LANDING_X_DEFAULT": 9999.0,
+    "LANDING_X_VALID_BELOW": 9000.0,
+    "PLAYER_ENTITY": 0,
+    "OPPONENT_ENTITY": 3
+  },
+  "enums": {
+    "FinalIntent": {
+      "None": 0, "Jump": 1, "Spike": 2, "Feint": 3, "Block": 4, "Bump": 5, "Slide": 6,
+      "Set": 7, "Serve": 8, "SpikeLight": 9, "SpikeMedium": 10, "SpikeStrong": 11
+    },
+    "ActionState": {
+      "None": 0, "Jump": 1, "Spike": 2, "Slide": 3, "Serve": 4, "Bump": 5, "Set": 6,
+      "SpikeLight": 7, "SpikeMedium": 8, "SpikeStrong": 9
+    },
+    "Team": {"LEFT": 0, "RIGHT": 1, "NONE": 2},
+    "BallStateFrame": {"Alive": -1, "Reset": 0},
+    "BallCollisionState": {"None": 0, "NetTop": 1, "NetMiddle": 2, "NetBottom": 3},
+    "TrajectoryType": {"Linear": 0, "Parabolic": 1},
+    "Controller": {"human": 0, "rule_bot": 1, "ml_bot": 2}
+  },
+  "raw_columns": [
+    {"name": "schema_version",        "type": "int",   "source": "hằng số = 1"},
+    {"name": "match_id",              "type": "str",   "source": "tên file log / uuid mỗi trận"},
+    {"name": "frame",                 "type": "int",   "source": "số frame từ đầu trận"},
+    {"name": "dt_ms",                 "type": "float", "source": "FIXED_TIME dùng trong frame"},
+
+    {"name": "p_x",                   "type": "float", "source": "CharacterPositionPool[PLAYER].x"},
+    {"name": "p_y",                   "type": "float", "source": "CharacterPositionPool[PLAYER].y"},
+    {"name": "p_action_state",        "type": "int",   "source": "CharacterActionStatePool[PLAYER].status (enum ActionState)"},
+    {"name": "p_action_remain_ms",    "type": "float", "source": "CharacterActionStatePool[PLAYER].remainTime"},
+    {"name": "p_controller",          "type": "int",   "source": "enum Controller"},
+    {"name": "p_player_id",           "type": "str",   "source": "mã ẩn danh người chơi (P01...), 'BOT' nếu là bot"},
+
+    {"name": "o_x",                   "type": "float", "source": "CharacterPositionPool[OPPONENT_1].x"},
+    {"name": "o_y",                   "type": "float", "source": "CharacterPositionPool[OPPONENT_1].y"},
+    {"name": "o_action_state",        "type": "int",   "source": "CharacterActionStatePool[OPPONENT_1].status"},
+    {"name": "o_action_remain_ms",    "type": "float", "source": "CharacterActionStatePool[OPPONENT_1].remainTime"},
+    {"name": "o_controller",          "type": "int",   "source": "enum Controller"},
+    {"name": "o_player_id",           "type": "str",   "source": "mã ẩn danh / 'BOT'"},
+
+    {"name": "ball_x",                "type": "float", "source": "BallPositionPool[BALL].x"},
+    {"name": "ball_y",                "type": "float", "source": "BallPositionPool[BALL].y"},
+    {"name": "ball_traj_type",        "type": "int",   "source": "BallTrajectoryComponent.type"},
+    {"name": "ball_speed",            "type": "float", "source": "BallTrajectoryComponent.speed (có dấu: + là bay sang phải)"},
+    {"name": "ball_a",                "type": "float", "source": "BallTrajectoryComponent.a  (y = a*(x+b)^2 + c)"},
+    {"name": "ball_b",                "type": "float", "source": "BallTrajectoryComponent.b"},
+    {"name": "ball_c",                "type": "float", "source": "BallTrajectoryComponent.c"},
+    {"name": "ball_landing_x",        "type": "float", "source": "BallGamePlayState.landingX (9999 = chưa có)"},
+    {"name": "ball_state_frame",      "type": "int",   "source": "BallGamePlayState.stateFrame (-1 Alive, >=0 Reset)"},
+    {"name": "ball_collision_state",  "type": "int",   "source": "BallGamePlayState.collisionState"},
+
+    {"name": "rally_last_touch",      "type": "int",   "source": "RallyState.lastTouch (entity id, 8 = NONE)"},
+    {"name": "rally_touch_count",     "type": "int",   "source": "RallyState.touchCount"},
+    {"name": "score_left",            "type": "int",   "source": "MatchState.leftScore"},
+    {"name": "score_right",           "type": "int",   "source": "MatchState.rightScore"},
+    {"name": "serving_team",          "type": "int",   "source": "MatchState.servingTeam (enum Team)"},
+
+    {"name": "p_input_move",          "type": "float", "source": "CharacterIntent[PLAYER].moveX của frame này (0 nếu không có intent)"},
+    {"name": "p_input_intent",        "type": "int",   "source": "CharacterIntent[PLAYER].finalIntent (enum FinalIntent)"},
+    {"name": "o_input_move",          "type": "float", "source": "CharacterIntent[OPPONENT_1].moveX"},
+    {"name": "o_input_intent",        "type": "int",   "source": "CharacterIntent[OPPONENT_1].finalIntent"}
+  ],
+  "features": [
+    {"name": "self_x",                "description": "x của mình (sân bên phải được lật: x' = 2*NET_X - x)"},
+    {"name": "self_y",                "description": "y của mình"},
+    {"name": "opp_x",                 "description": "x đối thủ (đã lật)"},
+    {"name": "self_dist_to_net",      "description": "NET_X - self_x"},
+    {"name": "ball_dx",               "description": "ball_x (đã lật) - self_x"},
+    {"name": "ball_y",                "description": "độ cao bóng"},
+    {"name": "ball_vx",               "description": "ball_speed, dương = bóng bay về phía đối thủ"},
+    {"name": "ball_a",                "description": "hệ số a của parabol (không đổi khi lật)"},
+    {"name": "ball_c",                "description": "đỉnh parabol c"},
+    {"name": "ball_vertex_dx",        "description": "x đỉnh parabol (= -b, đã lật) - self_x; 0 nếu a == 0"},
+    {"name": "landing_valid",         "description": "1 nếu landingX < LANDING_X_VALID_BELOW"},
+    {"name": "landing_dx",            "description": "landingX (đã lật) - self_x; 0 nếu không hợp lệ"},
+    {"name": "landing_on_my_side",    "description": "1 nếu landing hợp lệ và landingX (đã lật) < NET_X"},
+    {"name": "ball_alive",            "description": "1 nếu ball_state_frame == -1"},
+    {"name": "touch_count",           "description": "rally_touch_count"},
+    {"name": "last_touch_me",         "description": "1 nếu rally_last_touch == entity của mình"},
+    {"name": "last_touch_opp",        "description": "1 nếu rally_last_touch == entity đối thủ"},
+    {"name": "can_act",               "description": "1 nếu action_state của mình == None"},
+    {"name": "action_remain_ms",      "description": "cooldown còn lại của mình"},
+    {"name": "my_serve",              "description": "1 nếu serving_team là đội mình"},
+    {"name": "score_diff",            "description": "điểm mình - điểm đối thủ"}
+  ],
+  "labels": {
+    "move":   {"values": [-1, 0, 1], "description": "sign(input_move), đã lật: +1 = tiến về lưới"},
+    "action": {"values": ["None", "Jump", "Spike", "Feint", "Block", "Bump", "Slide", "Set", "Serve", "SpikeLight", "SpikeMedium", "SpikeStrong"]}
+  }
+}

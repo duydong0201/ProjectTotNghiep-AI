@@ -1,0 +1,20 @@
+# GĐ2 - bắt chước bot rule-based với log v1 (có bóng). Sanity check: macro-F1 move phải cao.
+run_name: baseline_v1_bot
+schema: v1
+data_dirs:
+  - data/raw/v1/bot
+agent: opponent
+targets: [move, action]
+test_size: 0.2
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 10
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+    class_weight: balanced

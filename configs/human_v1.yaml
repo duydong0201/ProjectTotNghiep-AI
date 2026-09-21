@@ -1,0 +1,22 @@
+# GĐ4 - học hành vi người chơi thật (nhân vật bên trái)
+run_name: human_v1
+schema: v1
+data_dirs:
+  - data/raw/v1/human
+agent: player
+targets: [move, action]
+test_size: 0.2
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 10
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+    class_weight: balanced
+  logreg:
+    class_weight: balanced
