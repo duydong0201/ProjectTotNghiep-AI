@@ -15,7 +15,7 @@ def compute_metrics(y_true, y_pred, labels) -> dict:
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "macro_f1": float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
-        "labels": [str(l) for l in labels],
+        "labels": [str(label) for label in labels],
         "confusion_matrix": confusion_matrix(y_true, y_pred, labels=labels).tolist(),
         "report": classification_report(y_true, y_pred, labels=labels, zero_division=0, output_dict=True),
     }
@@ -43,8 +43,15 @@ def plot_confusion_matrix(metrics: dict, title: str, out_path: Path) -> None:
     for i in range(len(labels)):
         for j in range(len(labels)):
             if cm[i, j] > 0:
-                ax.text(j, i, f"{cm_norm[i, j]:.2f}", ha="center", va="center", fontsize=7,
-                        color="white" if cm_norm[i, j] > 0.5 else "black")
+                ax.text(
+                    j,
+                    i,
+                    f"{cm_norm[i, j]:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color="white" if cm_norm[i, j] > 0.5 else "black",
+                )
     fig.colorbar(im, ax=ax, fraction=0.046)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)

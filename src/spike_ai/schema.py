@@ -1,7 +1,7 @@
 """Đọc schema JSON - nguồn sự thật về cột log, enum và thứ tự feature."""
 
 import json
-from functools import lru_cache
+from functools import cache
 
 import pandas as pd
 
@@ -13,7 +13,7 @@ SCHEMA_FILES = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_spec(version: str) -> dict:
     if version not in SCHEMA_FILES:
         raise ValueError(f"Schema '{version}' không tồn tại. Có: {list(SCHEMA_FILES)}")

@@ -1,0 +1,5 @@
+# Thư viện cho phát triển: test, lint, notebook. CI cũng cài file này.
+-r requirements.txt
+pytest>=8.0
+ruff>=0.6
+jupyter>=1.0
