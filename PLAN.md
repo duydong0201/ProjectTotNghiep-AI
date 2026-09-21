@@ -21,7 +21,7 @@ khi đã tích hợp vào game.
 
 ## GĐ0 — Chuẩn bị (Tuần 1)
 
-- [ ] Tạo venv, cài `requirements.txt`, chạy `pytest` thành công
+- [ ] Tạo venv, cài `requirements-dev.txt`, `scripts/check.ps1` PASS
 - [ ] Đọc code game: `AIInputSystem`, `CharacterIntent`, `FinalIntent`, `ActionState`,
       `MainScene::update`, `RallyStateUtils::LogTrajectoryEvent`
 - [ ] Đọc `docs/data_contract.md`, **họp với bạn làm game để chốt schema v1**
