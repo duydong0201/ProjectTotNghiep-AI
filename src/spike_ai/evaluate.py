@@ -2,6 +2,10 @@
 
 Dùng macro-F1 thay vì accuracy: dữ liệu có rất nhiều frame 'None', model đoán toàn
 'None' vẫn có accuracy cao nhưng macro-F1 thấp.
+
+macro-F1 chỉ lấy trung bình trên các lớp CÓ MẶT trong tập đo (support > 0). Một lớp vắng mặt
+không thể đo được: nếu vẫn tính nó với F1 = 0 thì điểm bị kéo xuống dù model không sai gì.
+Model đoán ra một lớp vắng mặt vẫn bị phạt, vì dự đoán đó làm giảm recall của lớp thật.
 """
 
 from pathlib import Path
@@ -9,15 +13,42 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
+# Lớp có ít mẫu hơn ngưỡng này trong tập đo thì F1 của nó rất nhiễu -> cảnh báo
+MIN_SUPPORT = 10
 
-def compute_metrics(y_true, y_pred, labels) -> dict:
-    labels = list(labels)
+
+def compute_metrics(y_true, y_pred, label_order) -> dict:
+    """label_order: thứ tự lớp chuẩn (lấy từ schema), dùng để sắp xếp kết quả."""
+    y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+    true_set, pred_set = set(y_true.tolist()), set(y_pred.tolist())
+
+    measured = [c for c in label_order if c in true_set]  # lớp tính vào macro-F1
+    shown = [c for c in label_order if c in true_set | pred_set]  # lớp hiện trong confusion matrix
+    support = {str(c): int((y_true == c).sum()) for c in measured}
+
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
-        "macro_f1": float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
-        "labels": [str(label) for label in labels],
-        "confusion_matrix": confusion_matrix(y_true, y_pred, labels=labels).tolist(),
-        "report": classification_report(y_true, y_pred, labels=labels, zero_division=0, output_dict=True),
+        "macro_f1": float(f1_score(y_true, y_pred, labels=measured, average="macro", zero_division=0)),
+        "measured_labels": [str(c) for c in measured],
+        "support": support,
+        "rare_labels": [c for c, n in support.items() if n < MIN_SUPPORT],
+        "labels": [str(c) for c in shown],
+        "confusion_matrix": confusion_matrix(y_true, y_pred, labels=shown).tolist(),
+        "report": classification_report(y_true, y_pred, labels=measured, zero_division=0, output_dict=True),
+    }
+
+
+def summarize_folds(fold_metrics: list[dict]) -> dict:
+    """Gộp kết quả nhiều fold (cross-validation): trung bình ± độ lệch chuẩn."""
+    acc = np.array([m["accuracy"] for m in fold_metrics])
+    f1 = np.array([m["macro_f1"] for m in fold_metrics])
+    return {
+        "accuracy": float(acc.mean()),
+        "accuracy_std": float(acc.std()),
+        "macro_f1": float(f1.mean()),
+        "macro_f1_std": float(f1.std()),
+        "n_folds": len(fold_metrics),
+        "folds": fold_metrics,
     }
 
 

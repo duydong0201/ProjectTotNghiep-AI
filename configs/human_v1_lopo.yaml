@@ -1,16 +1,15 @@
-# GĐ4 - học hành vi người chơi thật (nhân vật bên trái)
-run_name: human_v1
+# GĐ4 - câu hỏi (b): model có tổng quát sang NGƯỜI CHƠI MỚI không?
+# Leave-one-player-out: mỗi fold bỏ ra toàn bộ dữ liệu của một người để kiểm tra.
+run_name: human_v1_lopo
 schema: v1
 data_dirs:
   - data/raw/v1/human
 agent: player
 targets: [move, action]
 split:
-  # câu hỏi (a): bắt chước hành vi của những người chơi đã có trong dữ liệu -> nhóm theo trận
   group_by: match
-  # ít trận -> cross-validation 5 fold thay cho một tập dev duy nhất
-  dev_mode: kfold
-  n_folds: 5
+  # mỗi fold = một người chơi (đọc từ cột p_player_id)
+  dev_mode: lopo
   dev_ratio: 0
   holdout_ratio: 0
   # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
