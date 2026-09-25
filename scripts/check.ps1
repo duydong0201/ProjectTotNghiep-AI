@@ -10,6 +10,10 @@ Set-Location (Join-Path $PSScriptRoot "..")
 
 $py = if (Test-Path ".venv\Scripts\python.exe") { ".venv\Scripts\python.exe" } else { "python" }
 
+# $args bên trong scriptblock là biến tự động của chính scriptblock đó (luôn rỗng khi gọi
+# bằng & $cmd), nên phải đổi sang tên khác để scriptblock đọc được từ scope ngoài.
+$pytestArgs = $args
+
 function Step($title, [scriptblock]$cmd) {
     Write-Host "==> $title" -ForegroundColor Cyan
     & $cmd
@@ -21,5 +25,5 @@ function Step($title, [scriptblock]$cmd) {
 
 Step "[1/3] ruff check (lỗi logic, import, style)" { & $py -m ruff check . }
 Step "[2/3] ruff format --check (định dạng code)" { & $py -m ruff format --check . }
-Step "[3/3] pytest" { & $py -m pytest -q @args }
+Step "[3/3] pytest" { & $py -m pytest -q @pytestArgs }
 Write-Host "==> Tất cả đều PASS" -ForegroundColor Green
