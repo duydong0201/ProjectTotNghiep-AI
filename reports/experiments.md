@@ -21,3 +21,13 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-09-21 | baseline_v0_bot_20260921-145400 | v0 | opponent | action | decision_tree | dev | 44070 | 13392 | 0.451 | 0.134 | |
 | 2026-09-21 | baseline_v0_bot_20260921-145400 | v0 | opponent | action | random_forest | dev | 44070 | 13392 | 0.610 | 0.161 | |
 | 2026-09-21 | baseline_v0_bot_20260921-145400 | v0 | opponent | action | knn | dev | 44070 | 13392 | 0.994 | 0.199 | |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | move | majority | dev | 183772 | 37785 | 0.770 | 0.290 | Sau ADR-004 (nhãn đã sửa) + import đủ 101 trận. Mốc so sánh |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | move | logreg | dev | 183772 | 37785 | 0.335 | 0.325 | Ranh giới quyết định không tuyến tính -> accuracy sụp, chỉ hơn majority chút ở macro-F1 |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | move | decision_tree | dev | 183772 | 37785 | 0.736 | 0.610 | 0.515 -> 0.610 so với nhãn hỏng. Export C++ được |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | move | random_forest | dev | 183772 | 37785 | 0.748 | 0.622 | 0.543 -> 0.622. Tốt nhất trong nhóm export được -> chọn cho GĐ1 |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | move | knn | dev | 183772 | 37785 | 0.844 | 0.640 | 0.554 -> 0.640, cao nhất nhưng KHÔNG export sang C++ được, chỉ dùng làm trần tham chiếu |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | majority | dev | 183772 | 37785 | 0.996 | 0.200 | Đoán toàn None: acc 0.996 nhưng macro-F1 0.200 - minh hoạ vì sao không dùng accuracy |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | logreg | dev | 183772 | 37785 | 0.191 | 0.071 | Không học được |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | decision_tree | dev | 183772 | 37785 | 0.518 | 0.144 | Không học được |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | random_forest | dev | 183772 | 37785 | 0.738 | 0.180 | Không học được |
+| 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | knn | dev | 183772 | 37785 | 0.996 | 0.200 | Bằng majority = không học được gì |
