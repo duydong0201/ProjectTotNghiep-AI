@@ -22,6 +22,13 @@ Thiếu các thông tin sau thì model không thể học được *vì sao* ng�
 | Input thật của frame (thay vì event đã apply) | Nhãn bị lệch thời gian |
 | `match_id`, `player_id`, `controller` | Không chia train/test theo trận, không phân biệt người với bot |
 
+Ngoài việc thiếu cột, v0 còn **ghi theo sự kiện chứ không theo frame**: mỗi nhân vật đang có
+intent sinh ra một dòng riêng và nhân vật còn lại bị ghi cứng thành `"None"`, còn frame không ai
+bấm phím thì không có dòng nào. Kết quả là 19,5% số dòng mang nhãn sai và nhãn "đứng yên" gần như
+biến mất. `data.rebuild_frames_v0()` dựng lại một dòng mỗi frame trước khi tính feature — xem
+[ADR-004](decisions/adr-004-rebuild-v0-frames.md). Quy tắc 1 của v1 dưới đây sinh ra chính là để
+khỏi phải chữa cháy như vậy nữa.
+
 ## 2. Quy tắc ghi log v1 (phía game)
 
 1. **Một dòng mỗi frame mô phỏng**, kể cả khi không có ai bấm gì.
