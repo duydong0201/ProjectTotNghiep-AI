@@ -36,3 +36,4 @@ Không cần ADR cho chi tiết nhỏ như tên biến hay một hyperparameter.
 | [002](adr-002-custom-cpp-exporter.md) | Tự viết exporter C++ cho model cây thay vì dùng m2cgen | Accepted |
 | [003](adr-003-agent-view-mirroring.md) | Chuẩn hoá góc nhìn bằng cách lật sân qua lưới | Accepted |
 | [004](adr-004-data-split-strategy.md) | Chiến lược chia dữ liệu và đánh giá theo từng loại dữ liệu | Accepted |
+| [005](adr-005-rebuild-v0-frames.md) | Dựng lại frame cho log v0 trước khi tính feature | Accepted |

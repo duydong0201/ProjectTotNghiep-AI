@@ -5,6 +5,18 @@
 
 ---
 
+## [2026-09-25]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Phát hiện log v0 ghi theo sự kiện chứ không theo frame, làm hỏng nhãn `move` | Done | Đo trên 209.552 dòng log: 40.838 dòng (19,5%) mang nhãn `None` giả; ~45% frame vắng mặt. Ví dụ tái hiện: `Logs/2026-08-06_15-46-15.csv` frame 416 | - |
+| duydong0201 | Bước tiền xử lý dựng lại frame cho log v0 | Done | `data.rebuild_frames_v0()`, `tests/test_data.py` (10 test); [ADR-005](docs/decisions/adr-005-rebuild-v0-frames.md); `check` PASS (ruff + 32 test) | - |
+
+**Tổng kết ngày:** Nguyên nhân model `move` yếu không chỉ là thiếu bóng như kết luận ngày 21/09,
+mà còn vì nhãn bị gán sai có hệ thống. Mọi số đo trong `reports/experiments.md` trước ngày này
+không còn dùng để so sánh được, cần train lại. Việc tiếp theo: import lại log và chạy lại loạt
+so sánh model trên nhãn đã sửa.
+
 ## [2026-09-21]
 
 | Member | Task | Status | Output / Bằng chứng | Time |
