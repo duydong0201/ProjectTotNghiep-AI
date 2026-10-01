@@ -67,6 +67,17 @@ Từ 4 cột nhãn trên, phía AI sinh ra 3 target: `move`, `action`, và `spik
 giới hạn: [ADR-006](decisions/adr-006-conditional-spike-choice-target.md). Kiểm tra đã thu đủ mẫu
 chưa bằng `python scripts/count_spikes.py --dirs data/raw/v1/human`.
 
+### Bẫy nguồn gốc dữ liệu khi bật bot-vs-bot
+
+Game có cờ `MatchRuleConfig::ENABLE_BOT_VS_BOT` cho hai bot tự đánh với nhau để sinh dữ liệu
+hàng loạt. Khi bật, nhân vật sân trái **cũng là bot**, nhưng log v0 không có cột nào ghi lại điều
+đó (v1 có `p_controller` / `o_controller`). Nếu trộn loại log này vào `data/raw/v0` rồi train với
+`agent: player`, model sẽ học bot mà ta tưởng là học người.
+
+Quy ước: log bot-vs-bot để riêng ở **`data/raw/v0_botvsbot/`**, không bao giờ nằm cùng thư mục với
+dữ liệu người chơi. `scripts/count_spikes.py` gọi tên theo *phía sân* chứ không gọi là "người chơi",
+để khỏi nhận lầm.
+
 Hai việc **phía game** cần làm để `spike_choice` học được từ người chơi:
 1. Ghi đủ cột bóng ở trên — không có chúng thì không có thông tin nào quyết định cú đập.
 2. Bỏ `std::rand()` trong `AIInputSystem::PickAttackIntent`. Phần random nằm trong tập cú hợp lệ
