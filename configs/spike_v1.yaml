@@ -1,0 +1,49 @@
+# Học CHỌN CÚ ĐẬP: đã quyết định đập thì đập SpikeLight / SpikeMedium / SpikeStrong?
+#
+# Đây là bài toán HẸP hơn `action`, chỉ đo trên những frame thật sự có đập bóng
+# (nhãn `spike_choice` là conditional, xem schema/feature_spec.v1.json).
+# Khớp đúng chỗ ghép vào game: luật cũ trong AIInputSystem quyết định KHI NÀO tấn công,
+# model chỉ quyết định ĐẬP CÚ NÀO -> ghi đè intent.finalIntent ngay trước intentPool.add.
+#
+# ĐIỀU KIỆN để config này có nghĩa (kiểm tra bằng: python scripts/count_spikes.py --dirs data/raw/v1/human):
+#   1. Log v1 có cột bóng. v0 KHÔNG dùng được: thiếu ball_x/ball_y/ball_a/b/c thì
+#      không có thông tin nào quyết định cú đập.
+#   2. >= 150 mẫu mỗi cú. Tính tới 01/10/2026 người chơi mới có 17/19/5 -> chưa đủ.
+#   3. Nếu học từ bot (agent: opponent): bản hiện tại chọn cú bằng std::rand() trong tập cú
+#      hợp lệ. Tập hợp lệ thì tất định nên vẫn học được một phần (xem configs/spike_v0_bot.yaml
+#      và ADR-006), nhưng phần random chặn cứng trần hiệu năng. Muốn bỏ trần đó thì bên game
+#      phải chọn tất định.
+run_name: spike_v1
+schema: v1
+data_dirs:
+  - data/raw/v1/human
+# player = học từ người thật (mục tiêu của đề tài). Đổi thành opponent để bắt chước bot (sanity check GĐ2).
+agent: player
+targets: [spike_choice]
+split:
+  group_by: match
+  # rất ít mẫu -> cross-validation, không bao giờ dùng một tập dev duy nhất
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
+  salt: spike-ai-split-v1
+# holdout TƯƠNG LAI: các phiên chơi thu SAU khi đã chốt model (ADR-004). Chỉ đo với --final.
+holdout_dirs:
+  - data/raw/v1/human_holdout
+seed: 42
+models:
+  majority: {}
+  # ít mẫu -> cây phải nông và lá phải nhiều mẫu, không thì học thuộc lòng
+  decision_tree:
+    max_depth: 4
+    min_samples_leaf: 15
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 5
+    min_samples_leaf: 10
+    class_weight: balanced
+  logreg:
+    class_weight: balanced

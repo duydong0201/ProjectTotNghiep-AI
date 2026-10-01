@@ -1,0 +1,45 @@
+# Baseline cho spike_choice: bắt chước CÁCH CHỌN CÚ ĐẬP của bot luật, trên log v0.
+#
+# Mục đích: biết trần tham chiếu của bài toán trước khi có log v1, và chứng minh
+# đường ống `spike_choice` chạy đúng đầu-cuối. KHÔNG phải mục tiêu của đề tài.
+#
+# Vì sao học được dù v0 không có vị trí bóng (xem ADR-006):
+#   Bot luật luôn chạy tới đúng điểm rơi rồi mới đánh, nên `self_x` của chính nó
+#   là một proxy cho vị trí bóng. `PickAttackIntent` lọc các cú rơi trong sân đối
+#   phương trước khi random, và tập hợp lệ đó phụ thuộc khoảng cách tới lưới
+#   -> self_x dự đoán được cú nào khả dụng.
+#
+# Hai giới hạn khiến kết quả này KHÔNG dùng để kết luận cho người chơi:
+#   1. Người thật không đứng đúng điểm rơi như bot, nên self_x là proxy yếu hơn nhiều.
+#   2. Khi nhiều cú cùng hợp lệ, bot chọn bằng std::rand() -> trần bị chặn cứng,
+#      không model nào vượt được. Muốn bỏ trần này thì bên game phải chọn tất định.
+run_name: spike_v0_bot
+schema: v0
+data_dirs:
+  - data/raw/v0
+agent: opponent
+targets: [spike_choice]
+split:
+  group_by: match
+  # chỉ 353 mẫu -> cross-validation, không bao giờ dùng một tập dev duy nhất
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  # ít mẫu -> cây nông, lá nhiều mẫu, tránh học thuộc lòng
+  decision_tree:
+    max_depth: 4
+    min_samples_leaf: 15
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 5
+    min_samples_leaf: 10
+    class_weight: balanced
+  logreg:
+    class_weight: balanced

@@ -37,10 +37,11 @@ class _SpyModel:
         return out
 
 
-def _write_v0(folder: Path, names: list[str]) -> None:
+def _write_v0(folder: Path, names: list[str], bot_events: list[str] | None = None) -> None:
     rng = np.random.default_rng(0)
     folder.mkdir(parents=True, exist_ok=True)
     for name in names:
+        events = np.resize(bot_events, FRAMES) if bot_events else rng.choice(["None", "MoveLeft", "MoveRight"], FRAMES)
         pd.DataFrame(
             {
                 "Frame": np.arange(FRAMES),
@@ -49,7 +50,7 @@ def _write_v0(folder: Path, names: list[str]) -> None:
                 "PlayerEvent": "None",
                 "BotPosX": rng.uniform(1450, 2600, FRAMES).round(),
                 "BotPosY": 265,
-                "BotEvent": rng.choice(["None", "MoveLeft", "MoveRight"], FRAMES),
+                "BotEvent": events,
             }
         ).to_csv(folder / f"{name}.csv", index=False)
 
@@ -215,3 +216,44 @@ def test_lopo_leaves_out_one_player_per_fold(env):
     assert metrics["lopo/move__spy"]["n_folds"] == 4
     # mỗi fold validate đúng 3 trận của một người
     assert _SpyModel.predicted_rows == [3 * FRAMES] * 4
+
+
+# ---------------------------------------------------------------- nhãn có điều kiện (spike_choice)
+# 10 frame / trận, trong đó đúng 3 frame là cú đập -> phần còn lại phải bị loại khỏi train và đo
+SPIKE_CYCLE = ["SpikeLight", "None", "SpikeMedium", "MoveLeft", "SpikeStrong", "None", "Bump", "None", "None", "Serve"]
+SPIKES_PER_MATCH = 3
+
+
+def test_conditional_target_trains_only_on_rows_where_it_applies(env):
+    tmp, write_config = env
+    names = [f"match_{i:03d}" for i in range(30)]
+    _write_v0(tmp / "data", names, bot_events=SPIKE_CYCLE)
+
+    metrics = train_module.run(write_config(targets=["spike_choice"]))
+
+    expected = _expected_frames(names)
+    # fit trên số CÚ ĐẬP, không phải số frame
+    assert _SpyModel.fitted_rows == [expected[TRAIN] // FRAMES * SPIKES_PER_MATCH]
+    assert _SpyModel.predicted_rows == [expected[DEV] // FRAMES * SPIKES_PER_MATCH]
+    assert set(metrics["dev/spike_choice__spy"]["support"]) <= {"SpikeLight", "SpikeMedium", "SpikeStrong"}
+
+
+def test_conditional_target_keeps_other_targets_on_all_rows(env):
+    """Trong cùng một run, `move` vẫn dùng mọi frame còn `spike_choice` chỉ dùng frame đập bóng."""
+    tmp, write_config = env
+    names = [f"match_{i:03d}" for i in range(30)]
+    _write_v0(tmp / "data", names, bot_events=SPIKE_CYCLE)
+
+    train_module.run(write_config(targets=["move", "spike_choice"]))
+
+    n_train_matches = _expected_frames(names)[TRAIN] // FRAMES
+    assert _SpyModel.fitted_rows == [n_train_matches * FRAMES, n_train_matches * SPIKES_PER_MATCH]
+
+
+def test_conditional_target_without_any_sample_is_a_clear_error(env):
+    tmp, write_config = env
+    # không có cú đập nào trong dữ liệu
+    _write_v0(tmp / "data", [f"match_{i:03d}" for i in range(20)], bot_events=["None", "MoveLeft"])
+
+    with pytest.raises(ValueError, match="spike_choice.*không có mẫu nào"):
+        train_module.run(write_config(targets=["spike_choice"]))
