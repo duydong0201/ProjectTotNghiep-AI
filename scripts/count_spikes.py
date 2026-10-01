@@ -4,8 +4,12 @@
     python scripts/count_spikes.py --dirs data/raw/v1     # đếm thư mục khác
     python scripts/count_spikes.py --target 200           # đổi mục tiêu mỗi lớp
 
-Đếm riêng cho người chơi (agent=player) và bot (agent=opponent), vì chỉ dữ liệu
-NGƯỜI mới dùng được cho mục tiêu "bot chơi giống người".
+Đếm riêng cho nhân vật sân trái (agent=player) và sân phải (agent=opponent).
+
+CHÚ Ý về nguồn gốc dữ liệu: log không ghi ai điều khiển nhân vật nào (schema v0 thiếu cột
+`controller`). Nhân vật trái CHỈ là người thật khi log thu ở chế độ người-đánh-bot. Nếu game
+bật `ENABLE_BOT_VS_BOT` thì cả hai bên đều là bot - loại log đó phải để thư mục riêng
+(`data/raw/v0_botvsbot`) và không dùng cho mục tiêu "bot chơi giống người".
 """
 
 import argparse
@@ -18,14 +22,14 @@ from spike_ai.features import SPIKE_CHOICES, build
 # nhưng để train được tử tế cần nhiều hơn hẳn).
 DEFAULT_TARGET = 150
 
-AGENT_LABEL = {"player": "NGƯỜI chơi", "opponent": "BOT (luật)"}
+AGENT_LABEL = {"player": "Nhân vật SÂN TRÁI (PLAYER)", "opponent": "Nhân vật SÂN PHẢI (OPPONENT_1)"}
 
 
 def count(dirs: list[str], per_class_target: int) -> bool:
     df = load_dirs(dirs)
     print(f"Đọc {len(df):,} frame / {df['match_id'].nunique()} trận từ {dirs}\n")
 
-    enough_for_player = False
+    enough_on_left = False
     for agent, who in AGENT_LABEL.items():
         _, y = build(df, _version_of(df), agent)
         counts = y["spike_choice"].value_counts()
@@ -40,7 +44,7 @@ def count(dirs: list[str], per_class_target: int) -> bool:
         print(f"  {'tổng':<12} {total:>5}")
 
         if agent == "player":
-            enough_for_player = all(int(counts.get(n, 0)) >= per_class_target for n in SPIKE_CHOICES)
+            enough_on_left = all(int(counts.get(n, 0)) >= per_class_target for n in SPIKE_CHOICES)
         print()
 
     if not _has_ball(df):
@@ -49,11 +53,12 @@ def count(dirs: list[str], per_class_target: int) -> bool:
         print("  Cần log v1 theo schema/feature_spec.v1.json (xem docs/data_contract.md).")
         return False
 
-    if enough_for_player:
-        print(f"Đủ dữ liệu người chơi ({per_class_target}+ mẫu mỗi lớp) -> train được spike_choice.")
+    if enough_on_left:
+        print(f"Sân trái đã đủ {per_class_target}+ mẫu mỗi lớp -> train được spike_choice.")
+        print("Nhớ kiểm tra log này thu ở chế độ nào: bot-vs-bot thì sân trái cũng là bot.")
     else:
-        print("Chưa đủ dữ liệu NGƯỜI chơi. Cách nhanh nhất: chơi vài trận và cố ý đập bóng mỗi pha.")
-    return enough_for_player
+        print("Sân trái chưa đủ mẫu. Cách nhanh nhất: chơi vài trận và cố ý đập bóng mỗi pha.")
+    return enough_on_left
 
 
 def _version_of(df) -> str:

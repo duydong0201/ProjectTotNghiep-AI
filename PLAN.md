@@ -118,7 +118,8 @@ Báo cáo:
 | Hook cho `MLInputSystem` | GĐ1 | cùng interface với `AIInputSystem` |
 | `DatasetLogger` v1 | GĐ2 | ghi mỗi frame, trước `ApplyIntentToComponent` |
 | Fixed timestep | GĐ2 | dùng `SystemConfig::FIXED_DT` thay `delta` thật để tái lập được |
-| Chế độ bot vs bot | GĐ2 | để tự sinh dữ liệu và đánh giá hàng loạt |
+| ~~Chế độ bot vs bot~~ | GĐ2 | ✅ 02/10/2026: `MatchRuleConfig::ENABLE_BOT_VS_BOT`, `AIInputSystem` đã tham số hoá theo phía sân |
+| ~~Bỏ `std::rand()` khi chọn cú đập~~ | GĐ2 | ✅ 02/10/2026: `PickAttackIntent` chọn cú mạnh nhất còn rơi trong sân. Cần thiết để `spike_choice` học được (ADR-006) |
 
 ## Rủi ro
 
