@@ -21,6 +21,7 @@ Thiếu các thông tin sau thì model không thể học được *vì sao* ng�
 | Cooldown / action state | Không phân biệt được "không muốn đánh" với "không thể đánh" |
 | Input thật của frame (thay vì event đã apply) | Nhãn bị lệch thời gian |
 | `match_id`, `player_id`, `controller` | Không chia train/test theo trận, không phân biệt người với bot |
+| `game_version` | Log v0 trải qua 5 ngày (06–12/08) trong lúc code game/bot đang đổi, không lọc được log từ bản cũ |
 
 ## 2. Quy tắc ghi log v1 (phía game)
 
@@ -36,12 +37,17 @@ Thiếu các thông tin sau thì model không thể học được *vì sao* ng�
    Axmol (`MainScene::update` hiện dùng `FIXED_TIME = delta * 1000`). Nếu chưa đổi được,
    ghi `dt_ms` để phía AI biết.
 7. Giữ nguyên log debug cũ. Dataset log là một output riêng (README game, mục 17).
+8. `game_version` = git commit ngắn của repo game lúc build. Có thể nhúng lúc build bằng CMake:
+   `execute_process(COMMAND git rev-parse --short HEAD ...)` rồi `add_compile_definitions(GAME_VERSION="...")`.
+   Phía AI lọc theo phiên bản bằng `game_versions: [...]` trong config.
+9. `match_id` phải **duy nhất trên mọi máy**, ví dụ `<yyyy-mm-dd_hh-mm-ss>_<player_id>`. Phía AI dùng nó để
+   chia tập và để kiểm tra holdout không trùng trận với dữ liệu train.
 
 ## 3. Các cột (tóm tắt)
 
 | Nhóm | Cột |
 |---|---|
-| Meta | `schema_version, match_id, frame, dt_ms` |
+| Meta | `schema_version, match_id, frame, dt_ms, game_version` |
 | Player (trái, entity 0) | `p_x, p_y, p_action_state, p_action_remain_ms, p_controller, p_player_id` |
 | Opponent (phải, entity 3) | `o_x, o_y, o_action_state, o_action_remain_ms, o_controller, o_player_id` |
 | Bóng | `ball_x, ball_y, ball_traj_type, ball_speed, ball_a, ball_b, ball_c, ball_landing_x, ball_state_frame, ball_collision_state` |
@@ -54,7 +60,7 @@ Nguồn dữ liệu C++ của từng cột nằm ở trường `source` trong sp
 
 1. Sửa `schema/feature_spec.v1.json` (hoặc tạo `v2` nếu thay đổi lớn), tạo PR trên repo AI.
 2. Hai bên review.
-3. Bên game sửa `DatasetLogger`; bên AI sửa `features.py`. Test `tests/test_features.py`
+3. Bên game sửa `DatasetLogger`; bên AI sửa `features.py`. Test `tests/test_pipeline.py`
    bảo đảm thứ tự feature khớp spec.
 4. Log cũ và mới không trộn chung một thư mục. Mỗi dòng có `schema_version` để phát hiện lỗi.
 

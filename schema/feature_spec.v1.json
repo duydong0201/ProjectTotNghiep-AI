@@ -28,6 +28,7 @@
     {"name": "match_id",              "type": "str",   "source": "tên file log / uuid mỗi trận"},
     {"name": "frame",                 "type": "int",   "source": "số frame từ đầu trận"},
     {"name": "dt_ms",                 "type": "float", "source": "FIXED_TIME dùng trong frame"},
+    {"name": "game_version",          "type": "str",   "source": "git commit ngắn của repo game lúc build (vd 1f9881b) - để lọc log từ bản game cũ"},
 
     {"name": "p_x",                   "type": "float", "source": "CharacterPositionPool[PLAYER].x"},
     {"name": "p_y",                   "type": "float", "source": "CharacterPositionPool[PLAYER].y"},

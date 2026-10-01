@@ -33,7 +33,7 @@ Trong dự án ML có hai loại thay đổi khác nhau về bản chất:
 1. Tạo config       configs/<ten-thi-nghiem>.yaml   (copy từ config gần nhất, chỉ đổi 1-2 thứ)
 2. Tạo branch       git switch -c exp/<slug>  (từ develop)
 3. Train            python -m spike_ai.train --config configs/<ten>.yaml
-4. Đánh giá         chỉ nhìn kết quả trên DEV; mở confusion matrix trong models/<run>/
+4. Đánh giá         chỉ nhìn kết quả dev / CV; đọc cảnh báo cân bằng; mở confusion matrix trong models/<run>/
 5. Ghi nhận         điền cột "Ghi chú" trong reports/experiments.md: đổi gì, kết quả ra sao, vì sao
 6. Quyết định
      - kết quả không đáng giữ  -> vẫn commit config + ghi chú (thí nghiệm thất bại cũng là dữ liệu)
@@ -42,9 +42,22 @@ Trong dự án ML có hai loại thay đổi khác nhau về bản chất:
 7. Commit + PR      PR vào develop
 ```
 
+**Chế độ đánh giá** (`split.dev_mode` trong config, lý do ở [ADR-004](decisions/adr-004-data-split-strategy.md)):
+
+| `dev_mode` | Khi nào dùng | Kết quả |
+|---|---|---|
+| `single` | nhiều trận (dữ liệu bot v1) | một số đo trên tập dev chia bằng hash |
+| `kfold` | ít trận (v0, dữ liệu người) | trung bình ± độ lệch chuẩn của 5 fold theo trận |
+| `lopo` | hỏi "có tổng quát sang người mới không?" | mỗi fold bỏ ra một người chơi |
+
+So sánh hai model thì chênh lệch phải **lớn hơn độ lệch chuẩn** mới đáng tin.
+Đọc kỹ các dòng `!` trong output: nhóm chiếm quá nửa tập đo, tập đo thiếu lớp, lớp dưới 10 mẫu.
+
 **Kỷ luật holdout** (quan trọng nhất của vòng B):
-- Hằng ngày chỉ đo trên **dev**. `train` mặc định không chạm vào holdout.
+- Hằng ngày chỉ đo trên **dev / CV**. `train` mặc định không chạm vào holdout.
 - `--final` chỉ chạy khi **đã chốt model**, thường là cuối GĐ4 và trước khi viết báo cáo.
+- Với dữ liệu người chơi, holdout là **holdout tương lai**: các phiên thu *sau khi* chốt model,
+  để trong `data/raw/v1/human_holdout/`. `train` báo lỗi nếu holdout trùng trận với dữ liệu train.
 - Kết quả holdout **chỉ để ghi nhận**. Không được xem holdout sai ở đâu rồi quay lại sửa
   feature/model; làm vậy là "tune vào tập kiểm chứng" và con số holdout mất giá trị.
 - Không đổi `split.salt` trong config. Test `test_all_configs_share_the_frozen_salt` sẽ chặn.
@@ -103,7 +116,7 @@ Trước khi sửa, xác định loại thay đổi. Mọi artifact trong cột 
 | Loại thay đổi | Phải cập nhật cùng lúc | Kiểm tra |
 |---|---|---|
 | Feature / schema log | `schema/*.json` **trước** → `features.py` → `tests/` → `docs/data_contract.md` → báo bạn làm game | `check` (test thứ tự feature khớp spec) |
-| Cách chia dữ liệu | `split.py` → `tests/test_split.py` → mục 1 tài liệu này; ghi rõ holdout cũ còn dùng được không | `check` |
+| Cách chia / cách đo | `split.py` / `evaluate.py` / `train.py` → `tests/test_split.py`, `test_evaluate.py`, `test_train.py` → mục 1 tài liệu này → ADR mới nếu đổi chiến lược; ghi rõ holdout cũ còn dùng được không; ghi chú các dòng cũ trong `experiments.md` nếu không còn so sánh được | `check` |
 | Model đưa vào game | export `.h` → `RunGoldenTest()` pass bên game → `docs/integration.md` nếu cách gọi đổi → ghi run ID vào `WORKLOG.md` | golden test Python + C++ |
 | Thêm model mới | `models.py` (và `EXPORTABLE` nếu export được) → test export nếu export được | `check` |
 | Dependency | `requirements.txt` (chạy pipeline) hoặc `requirements-dev.txt` (test, lint, notebook) | CI cài lại từ đầu |
