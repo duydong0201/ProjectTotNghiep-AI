@@ -11,6 +11,11 @@ Chế độ đánh giá (split.dev_mode trong config), xem ADR-004:
     lopo    leave-one-player-out: mỗi fold bỏ ra một người chơi. Trả lời câu hỏi
             "model có tổng quát sang người chơi mới không?".
 
+Nhãn có điều kiện (`conditional: true` trong schema, vd `spike_choice`):
+    chỉ xác định ở một phần frame, các frame khác là NaN và bị loại khỏi train/đo/holdout.
+    Dùng khi muốn trả lời câu hỏi hẹp "đã quyết định đập thì đập cú nào" thay vì
+    "mỗi frame nên làm gì" - tránh mất cân bằng 0,16% so với 99,84% frame None.
+
 Holdout (chỉ đo khi có --final, và chỉ khi đã CHỐT model):
     split.holdout_ratio > 0   holdout = các nhóm được hash chọn ra từ data_dirs
     holdout_dirs: [...]       holdout "tương lai" = dữ liệu thu SAU khi chốt model, để ở thư mục riêng
@@ -119,22 +124,27 @@ def run(config_path: str, final: bool = False) -> dict:
 
     has_holdout = bool(len(index[HOLDOUT]) or cfg.get("holdout_dirs"))
     _print_split(version, agent, s, report, warnings, holdout, has_holdout)
-    all_metrics, rows = {}, []
+    all_metrics, log_rows = {}, []
 
     for target in cfg["targets"]:
         order = spec["labels"][target]["values"]
+        rows = np.flatnonzero(y[target].notna().to_numpy())  # nhãn có điều kiện -> bỏ dòng không áp dụng
+        keep = {n: np.intersect1d(idx, rows) for n, idx in index.items()}
+        _print_target(target, spec, y[target], rows, len(X))
+        _require_samples(target, s, keep)
+
         for name, params in cfg["models"].items():
             key = f"{target}__{name}"
 
             if s["dev_mode"] == "single":
-                fit_idx = index[TRAIN]
+                fit_idx = keep[TRAIN]
                 model = model_zoo.create(name, seed, params).fit(X.iloc[fit_idx], y[target].iloc[fit_idx])
-                dev_idx = index[DEV]
+                dev_idx = keep[DEV]
                 m = compute_metrics(y[target].iloc[dev_idx], model.predict(X.iloc[dev_idx]), order)
                 eval_name, golden = "dev", X.iloc[dev_idx].head(N_GOLDEN)
                 n_train, n_eval = len(fit_idx), len(dev_idx)
             else:
-                fit_idx = np.concatenate([index[TRAIN], index[DEV]])
+                fit_idx = np.union1d(keep[TRAIN], keep[DEV])
                 m = _cross_validate(X, y[target], df, agent, s, fit_idx, name, params, seed, order)
                 # model cuối cùng (để export / đo holdout) fit trên toàn bộ dữ liệu không thuộc holdout
                 model = model_zoo.create(name, seed, params).fit(X.iloc[fit_idx], y[target].iloc[fit_idx])
@@ -144,15 +154,16 @@ def run(config_path: str, final: bool = False) -> dict:
 
             all_metrics[f"{eval_name}/{key}"] = m
             plot_confusion_matrix(m, f"{eval_name}: {key}", out_dir / f"cm_{eval_name}_{key}.png")
-            rows.append((eval_name, target, name, n_train, n_eval, m))
+            log_rows.append((eval_name, target, name, n_train, n_eval, m))
             _print_result(eval_name, key, m)
 
             if holdout is not None:
                 X_h, y_h = holdout
-                mh = compute_metrics(y_h[target], model.predict(X_h), order)
+                h = y_h[target].notna().to_numpy()
+                mh = compute_metrics(y_h[target][h], model.predict(X_h[h]), order)
                 all_metrics[f"holdout/{key}"] = mh
                 plot_confusion_matrix(mh, f"holdout: {key}", out_dir / f"cm_holdout_{key}.png")
-                rows.append(("holdout", target, name, n_train, len(X_h), mh))
+                log_rows.append(("holdout", target, name, n_train, int(h.sum()), mh))
                 _print_result("holdout", key, mh)
 
             joblib.dump(
@@ -176,7 +187,7 @@ def run(config_path: str, final: bool = False) -> dict:
     with open(out_dir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(all_metrics, f, indent=2, ensure_ascii=False)
 
-    _append_experiment_log(out_dir.name, version, agent, rows)
+    _append_experiment_log(out_dir.name, version, agent, log_rows)
     print(f"Đã lưu vào {out_dir}")
     return all_metrics
 
@@ -227,6 +238,26 @@ def _print_split(version, agent, s, report, warnings, holdout, has_holdout: bool
         print("  config này không có holdout")
     for w in warnings:
         print(f"  ! {w}")
+
+
+def _require_samples(target, s, keep) -> None:
+    """Báo lỗi dễ hiểu khi nhãn có điều kiện không còn mẫu, thay vì để sklearn ném traceback."""
+    need = [TRAIN] if s["dev_mode"] != "single" else [TRAIN, DEV]
+    empty = [n for n in need if len(keep[n]) == 0]
+    if empty:
+        raise ValueError(
+            f"Nhãn '{target}' không có mẫu nào trong tập {empty}. "
+            f"Chạy 'python scripts/count_spikes.py' để xem cần thu thêm bao nhiêu dữ liệu."
+        )
+
+
+def _print_target(target, spec, y_target, rows, n_all: int):
+    """Với nhãn có điều kiện (vd spike_choice), in rõ còn lại bao nhiêu frame và mỗi lớp bao nhiêu mẫu."""
+    if not spec["labels"][target].get("conditional"):
+        return
+    counts = y_target.iloc[rows].value_counts()
+    per_class = ", ".join(f"{k} {v}" for k, v in counts.items())
+    print(f"  {target}: nhãn có điều kiện -> {len(rows)}/{n_all} frame ({per_class or 'KHÔNG CÓ MẪU NÀO'})")
 
 
 def _print_result(eval_name, key, m):

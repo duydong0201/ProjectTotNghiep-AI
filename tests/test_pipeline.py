@@ -61,8 +61,57 @@ def test_detect_version():
 def test_feature_order_matches_spec(version, maker, agent):
     X, y = build(maker(), version, agent)
     assert list(X.columns) == feature_names(load_spec(version))
-    assert set(y.columns) == {"move", "action"}
+    assert set(y.columns) == {"move", "action", "spike_choice"}
     assert not X.isna().any().any()
+
+
+# ---------------------------------------------------------------- nhãn có điều kiện
+def test_spike_choice_is_defined_only_on_spike_frames():
+    """spike_choice chỉ có giá trị ở frame thật sự đập bóng, các frame khác là NaN để train bỏ qua."""
+    events = ["None", "SpikeLight", "MoveRight", "SpikeMedium", "Bump", "SpikeStrong", "Serve"]
+    df = pd.DataFrame(
+        {
+            "Frame": np.arange(len(events)),
+            "PlayerPosX": 500.0,
+            "PlayerPosY": 265.0,
+            "PlayerEvent": events,
+            "BotPosX": 1900.0,
+            "BotPosY": 265.0,
+            "BotEvent": "None",
+            "match_id": "m",
+        }
+    )
+    _, y = build(df, "v0", "player")
+
+    assert list(y["spike_choice"].dropna()) == ["SpikeLight", "SpikeMedium", "SpikeStrong"]
+    # Bump / Serve / MoveRight là hành động thật nhưng KHÔNG phải đập -> vẫn bị loại
+    assert y["spike_choice"].isna().sum() == 4
+
+
+def test_spike_choice_follows_the_agent_not_the_court():
+    """Đổi agent thì nhãn phải lấy theo nhân vật đang học."""
+    df = pd.DataFrame(
+        {
+            "Frame": [0],
+            "PlayerPosX": [500.0],
+            "PlayerPosY": [265.0],
+            "PlayerEvent": ["SpikeLight"],
+            "BotPosX": [1900.0],
+            "BotPosY": [265.0],
+            "BotEvent": ["SpikeStrong"],
+            "match_id": ["m"],
+        }
+    )
+    assert build(df, "v0", "player")[1]["spike_choice"].iloc[0] == "SpikeLight"
+    assert build(df, "v0", "opponent")[1]["spike_choice"].iloc[0] == "SpikeStrong"
+
+
+def test_spike_choice_in_v1_comes_from_input_intent():
+    df = make_v1()
+    df["o_input_intent"] = 11  # SpikeStrong
+    assert build(df, "v1", "opponent")[1]["spike_choice"].iloc[0] == "SpikeStrong"
+    df["o_input_intent"] = 5  # Bump - không phải cú đập
+    assert build(df, "v1", "opponent")[1]["spike_choice"].isna().all()
 
 
 # ---------------------------------------------------------------- lật sân

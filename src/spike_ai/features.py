@@ -24,6 +24,9 @@ AGENT_SIDE = {"player": "left", "opponent": "right"}
 
 V0_ACTIONS = {"Jump", "Spike", "Slide", "Serve", "Bump", "Set", "SpikeLight", "SpikeMedium", "SpikeStrong"}
 
+# 3 cú đập có cường độ khác nhau. Nhãn spike_choice chỉ nhận các giá trị này, thứ tự theo schema.
+SPIKE_CHOICES = ("SpikeLight", "SpikeMedium", "SpikeStrong")
+
 
 def to_view_x(x, side: str, net_x: float):
     """Chuyển toạ độ x của game sang hệ toạ độ góc nhìn của agent."""
@@ -36,12 +39,13 @@ def to_view_sign(v, side: str):
 
 
 def build(df: pd.DataFrame, version: str, agent: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Trả về (X, y). X có đúng các cột feature theo spec; y có cột 'move' và 'action'."""
+    """Trả về (X, y). X có đúng các cột feature theo spec; y có 'move', 'action', 'spike_choice'."""
     if agent not in AGENT_SIDE:
         raise ValueError(f"agent phải là {list(AGENT_SIDE)}, nhận: {agent}")
     spec = load_spec(version)
     builder = {"v0": _build_v0, "v1": _build_v1}[version]
     X, y = builder(df, agent, spec)
+    y["spike_choice"] = y["action"].where(y["action"].isin(SPIKE_CHOICES))
 
     expected = feature_names(spec)
     if list(X.columns) != expected:

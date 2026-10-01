@@ -61,6 +61,17 @@ khỏi phải chữa cháy như vậy nữa.
 | Rally / trận | `rally_last_touch, rally_touch_count, score_left, score_right, serving_team` |
 | Nhãn (input) | `p_input_move, p_input_intent, o_input_move, o_input_intent` |
 
+Từ 4 cột nhãn trên, phía AI sinh ra 3 target: `move`, `action`, và `spike_choice`.
+`spike_choice` là **nhãn có điều kiện** — chỉ xác định ở frame `*_input_intent` là một trong ba cú
+`SpikeLight / SpikeMedium / SpikeStrong`, các frame khác bị loại khỏi tập train và tập đo. Lý do và
+giới hạn: [ADR-006](decisions/adr-006-conditional-spike-choice-target.md). Kiểm tra đã thu đủ mẫu
+chưa bằng `python scripts/count_spikes.py --dirs data/raw/v1/human`.
+
+Hai việc **phía game** cần làm để `spike_choice` học được từ người chơi:
+1. Ghi đủ cột bóng ở trên — không có chúng thì không có thông tin nào quyết định cú đập.
+2. Bỏ `std::rand()` trong `AIInputSystem::PickAttackIntent`. Phần random nằm trong tập cú hợp lệ
+   nên nó chặn cứng trần hiệu năng của mọi model (ADR-006).
+
 Nguồn dữ liệu C++ của từng cột nằm ở trường `source` trong spec JSON.
 
 ## 4. Quy trình khi muốn đổi format
