@@ -23,9 +23,13 @@ Trong dự án ML có hai loại thay đổi khác nhau về bản chất:
 4. Chạy check       scripts/check.ps1                        (phải PASS trước khi commit)
 5. Cập nhật docs    theo ma trận lan truyền ở mục 4
 6. Commit           Conventional Commits (mục 3), mỗi commit là một thay đổi trọn vẹn
-7. Push + PR        PR vào develop, chờ CI xanh, tự review diff rồi merge
+7. Push + PR        PR vào develop, chờ CI xanh (*), tự review diff rồi merge
 8. Đóng việc        cập nhật WORKLOG.md, điền tổng kết plan, chuyển plan sang docs/plans/completed/
 ```
+
+> (*) **CI đang tạm tắt** (từ 2026-09-21): chỉ chạy tay ở tab Actions. Trong thời gian này,
+> `scripts/check.ps1` PASS ở máy là điều kiện **bắt buộc** trước khi merge. Cách bật lại ghi ở
+> đầu `.github/workflows/ci.yml`.
 
 ### Vòng B — Thí nghiệm
 
@@ -131,7 +135,7 @@ Một việc chỉ được coi là **xong** khi:
 - [ ] Behavior mới có test. Bug fix có test tái hiện bug.
 - [ ] Không xoá, bỏ qua hay nới lỏng test chỉ để cho qua.
 - [ ] Docs đã cập nhật theo ma trận ở mục 4.
-- [ ] CI xanh trên PR.
+- [ ] CI xanh trên PR (khi CI đang tạm tắt: ghi kết quả `check.ps1` vào mô tả PR).
 - [ ] `WORKLOG.md` có dòng mới nếu hoàn thành một chức năng hoặc outcome.
 - [ ] Plan (nếu có) đã điền tổng kết và chuyển sang `docs/plans/completed/`.
 - [ ] Không commit dữ liệu, model, secret hay file tạm.
