@@ -5,6 +5,20 @@
 
 ---
 
+## [2026-10-01]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Gộp 3 nhánh đang treo vào `develop`, giải quyết trùng số ADR | Done | `develop` = merge của `fix/split-and-metrics`, `chore/pause-ci`, `fix/rebuild-v0-frames`; ADR trùng số 004 → đổi thành [ADR-005](docs/decisions/adr-005-rebuild-v0-frames.md); `check` PASS (ruff + 55 test) | - |
+| duydong0201 | Import đủ log v0 và đo lại bằng cross-validation | Done | 101 trận / 241.542 frame. CV 5 fold, nhãn đã sửa: `move` RF **0.638 ± 0.029** (so cùng cách đo: 0.551 trước khi sửa nhãn, 31 trận). `action` vẫn 0.258 ± 0.137 = bằng majority. Xem [experiments.md](reports/experiments.md) run `20261001-233311` | - |
+
+**Tổng kết ngày:** Đã có con số đáng tin đầu tiên cho `move`: Random Forest 0.638 ± 0.029 macro-F1, gấp
+hơn hai lần baseline 0.297, và được đo bằng CV nên không phụ thuộc may rủi của một lần chia. KNN 0.639
+nhúc nhích hơn nhưng chênh chưa tới một sai số chuẩn và không export sang C++ được, nên **chọn Random
+Forest cho GĐ1**. `action` thì xác nhận dứt điểm là không học được ở v0 — độ lệch chuẩn (0.137) còn lớn
+hơn khoảng cách tới majority, tức là hoàn toàn nhiễu. Việc tiếp theo: export RF ra header C++ và ghép
+vào game để hoàn thành demo GĐ1.
+
 ## [2026-09-25]
 
 | Member | Task | Status | Output / Bằng chứng | Time |

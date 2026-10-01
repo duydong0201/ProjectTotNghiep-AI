@@ -47,3 +47,13 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | decision_tree | dev | 183772 | 37785 | 0.518 | 0.144 | Không học được |
 | 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | random_forest | dev | 183772 | 37785 | 0.738 | 0.180 | Không học được |
 | 2026-09-25 | baseline_v0_bot_20260925-123104 | v0 | opponent | action | knn | dev | 183772 | 37785 | 0.996 | 0.200 | Bằng majority = không học được gì |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | move | majority | cv | 241542 | 241542 | 0.809 ± 0.084 | 0.297 ± 0.016 | CV 5 fold trên 101 trận, nhãn đã sửa (ADR-005). Mốc so sánh |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | move | logreg | cv | 241542 | 241542 | 0.557 ± 0.218 | 0.426 ± 0.056 | 0.325 -> 0.426 nhưng vẫn kém xa cây: ranh giới quyết định không tuyến tính |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | move | decision_tree | cv | 241542 | 241542 | 0.808 ± 0.105 | 0.624 ± 0.035 | So cùng cách đo (cv): 0.529 -> 0.624 nhờ sửa nhãn + 31->101 trận |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | move | random_forest | cv | 241542 | 241542 | 0.824 ± 0.094 | 0.638 ± 0.029 | 0.551 -> 0.638. Bằng knn trong sai số nhưng export C++ được -> chọn cho GĐ1 |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | move | knn | cv | 241542 | 241542 | 0.882 ± 0.062 | 0.639 ± 0.028 | 0.537 -> 0.639, cao nhất nhưng chênh RF chưa tới 1 sai số chuẩn; KHÔNG export C++ được |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | action | majority | cv | 241542 | 241542 | 0.997 ± 0.001 | 0.260 ± 0.120 | Đoán toàn None: acc 0.997, macro-F1 0.260 - vì sao không dùng accuracy |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | action | logreg | cv | 241542 | 241542 | 0.099 ± 0.063 | 0.049 ± 0.015 | Không học được |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | action | decision_tree | cv | 241542 | 241542 | 0.619 ± 0.192 | 0.224 ± 0.152 | Không học được; std 0.152 lớn hơn cả khoảng cách tới majority = nhiễu |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | action | random_forest | cv | 241542 | 241542 | 0.830 ± 0.085 | 0.258 ± 0.137 | Không học được: 0.258 ± 0.137, bằng majority. Phải chờ log v1 có bóng |
+| 2026-10-01 | baseline_v0_bot_20261001-233311 | v0 | opponent | action | knn | cv | 241542 | 241542 | 0.997 ± 0.001 | 0.260 ± 0.120 | Bằng majority = không học được gì |
