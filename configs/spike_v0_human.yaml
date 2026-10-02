@@ -1,0 +1,43 @@
+# Học CHỌN CÚ ĐẬP từ NGƯỜI chơi, trên dữ liệu v0 đang có.
+#
+# Chạy config này để có bằng chứng định lượng rằng dữ liệu hiện tại CHƯA ĐỦ, chứ không phải
+# để chốt model. Tính tới 02/10/2026 người chơi mới có 17 / 19 / 5 mẫu cho ba cú đập
+# (kiểm tra: python scripts/count_spikes.py). Kỳ vọng kết quả tệ.
+#
+# So sánh với configs/spike_v0_bot.yaml - CÙNG feature, CÙNG model, CÙNG cách đo, chỉ khác
+# số mẫu (41 của người so với 353 của bot). Chênh lệch giữa hai run là bằng chứng trực tiếp
+# cho kết luận "cần thu thêm dữ liệu", không phải suy đoán.
+#
+# Hai giới hạn của v0 vẫn còn, thu thêm dữ liệu không xoá được:
+#   - không có cột bóng -> thiếu đúng thông tin quyết định cú đập (xem docs/data_contract.md)
+#   - nhãn `spike_choice` là conditional, chỉ xác định ở frame thật sự đập bóng (ADR-006)
+run_name: spike_v0_human
+schema: v0
+data_dirs:
+  - data/raw/v0
+agent: player
+targets: [spike_choice]
+split:
+  group_by: match
+  # cực ít mẫu -> cross-validation, không bao giờ dùng một tập dev duy nhất
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  # ít mẫu -> cây nông, lá nhiều mẫu, tránh học thuộc lòng
+  decision_tree:
+    max_depth: 4
+    min_samples_leaf: 15
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 5
+    min_samples_leaf: 10
+    class_weight: balanced
+  logreg:
+    class_weight: balanced

@@ -5,6 +5,36 @@
 
 ---
 
+## [2026-10-02]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Train `spike_choice` trên dữ liệu người chơi hiện có | Done | 41 mẫu (Light 17 / Medium 19 / Strong 5). RF macro-F1 **0.485 ± 0.168**, từng fold `[0.817, 0.429, 0.440, 0.385, 0.357]`. Xem [experiments.md](reports/experiments.md) run `spike_v0_human_20261002-142048` | - |
+| duydong0201 | Đối chứng: cùng pipeline trên dữ liệu bot | Done | 353 mẫu → RF **0.570 ± 0.043**. Cùng feature, cùng model, cùng cách đo, chỉ khác số mẫu. Run `spike_v0_bot_20261002-002847` | - |
+| duydong0201 | Chế độ bot-vs-bot phía game để tự sinh dữ liệu | Thử, không dùng | Hai bot tất định → rally lặp tuần hoàn: 78 cú đập nhưng chỉ 4 tình huống khác nhau. Ngẫu nhiên hoá quả giao + lệch vị trí đều không mở được bế tắc (5 thí nghiệm, bảng số liệu trong comment `AIInputSystem.cpp`). **Đã hoàn lại `std::rand()`** để game về đúng bản đã chốt | - |
+
+**Tổng kết ngày — kết luận cho báo cáo:**
+
+Đã train `spike_choice` (chọn 1 trong 3 cú `SpikeLight` / `SpikeMedium` / `SpikeStrong`) trên dữ liệu
+người chơi hiện có. **Kết quả không dùng được, và lý do là thiếu dữ liệu**, có hai bằng chứng định lượng:
+
+1. **Độ lệch chuẩn quá lớn so với điểm số.** RF đạt 0.485 nhưng ± 0.168, tức giá trị thật có thể nằm
+   bất kỳ đâu trong khoảng 0.32–0.65. Decision tree còn tệ hơn: 0.289 ± 0.222 — độ lệch gần bằng
+   chính điểm số. Từng fold của RF: `[0.817, 0.429, 0.440, 0.385, 0.357]`, fold cao gấp **2,3 lần**
+   fold thấp. Một model học được quy luật thật thì không dao động như vậy.
+
+2. **Đối chứng trực tiếp với dữ liệu nhiều hơn.** Chạy *đúng* pipeline đó trên 353 mẫu của bot:
+   0.570 ± 0.043 — điểm cao hơn và **độ lệch chuẩn nhỏ hơn 4 lần**. Khác biệt duy nhất giữa hai
+   run là số mẫu (41 so với 353). Đây là bằng chứng, không phải suy đoán.
+
+Riêng lớp `SpikeStrong` chỉ có **5 mẫu** trên toàn bộ 101 trận, nên F1 của lớp này không có ý nghĩa
+thống kê (`evaluate.py` tự cảnh báo khi lớp < 10 mẫu).
+
+**Việc tiếp theo:** thu thêm dữ liệu cú đập của người chơi, mục tiêu ≥ 150 mẫu mỗi cú (hiện 17/19/5).
+Không cần sửa game — chỉ cần chơi và chủ động đập bóng. Kiểm tra bằng `python scripts/count_spikes.py`.
+Song song đó, hạn chế còn lại của log v0 là **thiếu cột bóng**: quyết định đập cú nào phụ thuộc vị trí
+và quỹ đạo bóng, nên dù đủ mẫu vẫn cần log v1 ([data_contract.md](docs/data_contract.md)).
+
 ## [2026-10-01]
 
 | Member | Task | Status | Output / Bằng chứng | Time |
