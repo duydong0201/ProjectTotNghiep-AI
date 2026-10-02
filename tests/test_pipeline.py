@@ -1,5 +1,7 @@
 """Test cho thứ tự feature, lật sân và export C++. Test chia dữ liệu nằm ở test_split.py."""
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -173,3 +175,32 @@ def test_export_tables_match_sklearn(name, params):
     }
     header = render_header(bundle, tables)
     assert "RunGoldenTest" in header and f"kNumTrees    = {len(tables)}" in header
+
+
+def test_header_has_no_invalid_cpp_float_literal():
+    """`0f` / `433f` không biên dịch được: hậu tố f cần dấu thập phân hoặc số mũ.
+
+    Lá thuần (xác suất đúng 0.0 và 1.0) là lúc sinh ra literal sai, nên để cây mọc sâu
+    không giới hạn. Golden test phía Python không bắt được vì nó so số, không biên dịch C++.
+    """
+    X, y = build(make_v0(200), "v0", "opponent")
+    model = create("decision_tree", seed=0).fit(X, y["move"])
+    tables = [tree_tables(model)]
+    bundle = {
+        "target": "move",
+        "model_name": "decision_tree",
+        "schema": "v0",
+        "agent": "opponent",
+        "features": list(X.columns),
+        "classes": [str(c) for c in model.classes_],
+        "golden_X": X.head(3).to_numpy().tolist(),
+        "golden_proba": model.predict_proba(X.head(3)).tolist(),
+    }
+
+    header = render_header(bundle, tables)
+
+    # xác suất lá đúng 0 hoặc 1 phải thực sự có trong header, nếu không test này vô nghĩa
+    assert "0.0f" in header or "1.0f" in header
+    literals = re.findall(r"[-+]?\d[\d.]*(?:[eE][-+]?\d+)?f\b", header)
+    invalid = [t for t in literals if not any(c in t for c in ".eE")]
+    assert not invalid, f"literal float không hợp lệ trong C++: {sorted(set(invalid))}"
