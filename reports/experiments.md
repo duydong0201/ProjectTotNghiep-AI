@@ -73,3 +73,7 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-10-02 | spike_v0_bot_20261002-160429 | v0 | opponent | spike_choice | decision_tree | cv | 353 | 353 | 0.609 ± 0.050 | 0.533 ± 0.028 | Thêm 4 feature vận tốc: 0.570 -> 0.568, KHÔNG đổi. self_vx và self_vy bằng 0 ở 100% frame đập bóng (bot dừng lại rồi mới đập). Đã hoàn lại, xem ADR-007 |
 | 2026-10-02 | spike_v0_bot_20261002-160429 | v0 | opponent | spike_choice | random_forest | cv | 353 | 353 | 0.660 ± 0.075 | 0.568 ± 0.040 | Thêm 4 feature vận tốc: 0.570 -> 0.568, KHÔNG đổi. self_vx và self_vy bằng 0 ở 100% frame đập bóng (bot dừng lại rồi mới đập). Đã hoàn lại, xem ADR-007 |
 | 2026-10-02 | spike_v0_bot_20261002-160429 | v0 | opponent | spike_choice | logreg | cv | 353 | 353 | 0.593 ± 0.127 | 0.508 ± 0.064 | Thêm 4 feature vận tốc: 0.570 -> 0.568, KHÔNG đổi. self_vx và self_vy bằng 0 ở 100% frame đập bóng (bot dừng lại rồi mới đập). Đã hoàn lại, xem ADR-007 |
+| 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | majority | cv | 41 | 41 | 0.267 ± 0.180 | 0.146 ± 0.094 | |
+| 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | decision_tree | cv | 41 | 41 | 0.375 ± 0.250 | 0.217 ± 0.137 | |
+| 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | random_forest | cv | 41 | 41 | 0.631 ± 0.088 | 0.493 ± 0.166 | |
+| 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | logreg | cv | 41 | 41 | 0.556 ± 0.176 | 0.532 ± 0.178 | |
