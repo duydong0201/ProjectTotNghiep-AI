@@ -70,8 +70,8 @@ Mục tiêu là chứng minh đường ống thông suốt, **không cần model
 - [ ] Mất cân bằng: `class_weight`, giảm frame `None`, chỉ lấy cửa sổ quanh lúc chạm bóng
 - [ ] Feature engineering (chỉ những gì viết lại được trong C++, ghi vào spec)
 - [ ] Train và so sánh: majority → Decision Tree → Random Forest → (LightGBM) → (MLP)
-- [ ] Đánh giá: macro-F1, confusion matrix, **GroupKFold theo trận**, và thêm
-      "train trên người A, test trên người B"
+- [ ] Đánh giá: macro-F1, confusion matrix, **CV 5 fold theo trận** (`configs/human_v1.yaml`),
+      và **leave-one-player-out** (`configs/human_v1_lopo.yaml`), xem ADR-004
 - [ ] Chọn model theo: macro-F1, tốc độ suy luận, dễ export, tính deterministic
 
 **Xong khi:** có bảng so sánh trong `reports/experiments.md` và lý do chọn model.
@@ -85,6 +85,9 @@ Mục tiêu là chứng minh đường ống thông suốt, **không cần model
 - [ ] Đo thời gian suy luận mỗi frame (mục tiêu < 0.1 ms)
 
 ## GĐ6 — Đánh giá trong game (Tuần 9–11)
+
+- [ ] Thu **holdout tương lai**: các phiên chơi mới sau khi đã chốt model, có ≥ 2 người chưa từng chơi
+      → `data/raw/v1/human_holdout/` → `train --final` (ADR-004)
 
 - [ ] Tỷ lệ thắng: ML-bot vs rule-bot, ML-bot vs người (≥ 20 trận mỗi cặp)
 - [ ] Độ giống người: so sánh phân bố hành động, vị trí đứng, thời điểm đánh bóng
@@ -115,7 +118,8 @@ Báo cáo:
 | Hook cho `MLInputSystem` | GĐ1 | cùng interface với `AIInputSystem` |
 | `DatasetLogger` v1 | GĐ2 | ghi mỗi frame, trước `ApplyIntentToComponent` |
 | Fixed timestep | GĐ2 | dùng `SystemConfig::FIXED_DT` thay `delta` thật để tái lập được |
-| Chế độ bot vs bot | GĐ2 | để tự sinh dữ liệu và đánh giá hàng loạt |
+| ~~Chế độ bot vs bot~~ | GĐ2 | ✅ 02/10/2026: `MatchRuleConfig::ENABLE_BOT_VS_BOT`, `AIInputSystem` đã tham số hoá theo phía sân |
+| ~~Bỏ `std::rand()` khi chọn cú đập~~ | GĐ2 | ✅ 02/10/2026: `PickAttackIntent` chọn cú mạnh nhất còn rơi trong sân. Cần thiết để `spike_choice` học được (ADR-006) |
 
 ## Rủi ro
 

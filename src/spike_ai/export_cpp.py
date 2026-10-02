@@ -66,6 +66,20 @@ def _fmt(v: float) -> str:
     return repr(float(v))
 
 
+def _float_literal(v: float) -> str:
+    """Literal float hợp lệ trong C++.
+
+    `f"{0.0:.9g}f"` cho ra `0f`, và `433.0` cho ra `433f` - cả hai KHÔNG biên dịch được
+    (C2737/C3688 trên MSVC): hậu tố `f` cần một dấu thập phân hoặc số mũ đứng trước.
+    Lỗi này chỉ lộ ra khi lá của cây có xác suất đúng 0 hoặc 1, nên golden test phía Python
+    không phát hiện được - nó so số, không biên dịch C++.
+    """
+    s = f"{float(v):.9g}"
+    if not any(c in s for c in ".eE"):
+        s += ".0"
+    return s + "f"
+
+
 def render_header(bundle: dict, tables: list[dict]) -> str:
     target, model_name = bundle["target"], bundle["model_name"]
     ns = re.sub(r"\W", "_", f"{target}_{model_name}")
@@ -112,7 +126,7 @@ def render_header(bundle: dict, tables: list[dict]) -> str:
         lines.append("};")
         lines.append(f"constexpr float kTree{i}Proba[][kNumClasses] = {{")
         for p in tb["proba"]:
-            lines.append("    {" + ", ".join(f"{v:.9g}f" for v in p) + "},")
+            lines.append("    {" + ", ".join(_float_literal(v) for v in p) + "},")
         lines.append("};")
         lines.append("")
 
@@ -159,10 +173,10 @@ def render_header(bundle: dict, tables: list[dict]) -> str:
         "// ---- Golden test: vector lấy từ tập dev, kết quả do Python (sklearn) tính ----",
         f"constexpr int kNumGolden = {len(bundle['golden_X'])};",
         "constexpr float kGoldenX[kNumGolden][kNumFeatures] = {",
-        *["    {" + ", ".join(f"{v:.9g}f" for v in row) + "}," for row in bundle["golden_X"]],
+        *["    {" + ", ".join(_float_literal(v) for v in row) + "}," for row in bundle["golden_X"]],
         "};",
         "constexpr float kGoldenProba[kNumGolden][kNumClasses] = {",
-        *["    {" + ", ".join(f"{v:.9g}f" for v in row) + "}," for row in bundle["golden_proba"]],
+        *["    {" + ", ".join(_float_literal(v) for v in row) + "}," for row in bundle["golden_proba"]],
         "};",
         "",
         "inline bool RunGoldenTest()",
@@ -172,7 +186,7 @@ def render_header(bundle: dict, tables: list[dict]) -> str:
         "        float proba[kNumClasses];",
         "        PredictProba(kGoldenX[i], proba);",
         "        for (int c = 0; c < kNumClasses; ++c)",
-        f"            if (std::fabs(proba[c] - kGoldenProba[i][c]) > {GOLDEN_TOLERANCE}f)",
+        f"            if (std::fabs(proba[c] - kGoldenProba[i][c]) > {_float_literal(GOLDEN_TOLERANCE)})",
         "                return false;",
         "    }",
         "    return true;",

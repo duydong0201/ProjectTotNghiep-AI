@@ -44,8 +44,8 @@ python scripts/import_logs.py --src ../ProjectTotNghiep/Logs --dest data/raw/v0
 # 2) Xem nhanh dữ liệu: số trận, số dòng, phân bố nhãn
 python scripts/inspect_data.py --config configs/baseline_v0.yaml
 
-# 3) Train, đo trên tập dev, lưu vào models/, ghi kết quả vào reports/experiments.md
-#    (holdout được giữ kín; chỉ thêm --final khi đã chốt model — xem docs/workflow.md)
+# 3) Train, đánh giá bằng cross-validation (v0 có ít trận), lưu vào models/, ghi vào reports/experiments.md
+#    (holdout được giữ kín; chỉ thêm --final khi đã chốt model — xem docs/workflow.md, ADR-004)
 python -m spike_ai.train --config configs/baseline_v0.yaml
 
 # 4) Export model Decision Tree sang header C++ để cắm vào game
@@ -75,15 +75,16 @@ ProjectTotNghiep-AI/
 ├── data/                    # KHÔNG commit (đã .gitignore)
 │   ├── raw/v0/              #   log CSV cũ copy từ game
 │   ├── raw/v1/bot|human/    #   log v1, tách theo nguồn điều khiển
+│   ├── raw/v1/human_holdout/ #  holdout tương lai: thu SAU khi chốt model
 │   └── processed/           #   dữ liệu đã clean / feature (parquet, csv)
 ├── notebooks/               # EDA, thử nghiệm nhanh (đặt tên 01_eda.ipynb, 02_...)
 ├── src/spike_ai/            # code chính (import được)
 │   ├── schema.py            #   đọc spec, nhận diện version, kiểm tra cột
 │   ├── data.py              #   đọc nhiều file CSV, gắn match_id
 │   ├── features.py          #   raw -> X (feature) + y (nhãn)  ← phải tái tạo được trong C++
-│   ├── split.py             #   chia train/dev/holdout theo HASH của trận/người chơi
+│   ├── split.py             #   chia theo HASH của trận/người chơi, CV (kfold/lopo), báo cáo cân bằng
 │   ├── models.py            #   danh sách model (majority, tree, forest, knn, ...)
-│   ├── evaluate.py          #   macro-F1, confusion matrix
+│   ├── evaluate.py          #   macro-F1 (chỉ lớp có mặt), support, confusion matrix
 │   ├── train.py             #   CLI train
 │   └── export_cpp.py        #   CLI export model -> header C++ + golden test
 ├── scripts/                 # check.ps1/.sh (quality gate), import log, xem dữ liệu

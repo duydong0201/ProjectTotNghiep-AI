@@ -35,3 +35,7 @@ Không cần ADR cho chi tiết nhỏ như tên biến hay một hyperparameter.
 | [001](adr-001-behavior-cloning.md) | Dùng Behavior Cloning thay vì Reinforcement Learning | Accepted |
 | [002](adr-002-custom-cpp-exporter.md) | Tự viết exporter C++ cho model cây thay vì dùng m2cgen | Accepted |
 | [003](adr-003-agent-view-mirroring.md) | Chuẩn hoá góc nhìn bằng cách lật sân qua lưới | Accepted |
+| [004](adr-004-data-split-strategy.md) | Chiến lược chia dữ liệu và đánh giá theo từng loại dữ liệu | Accepted |
+| [005](adr-005-rebuild-v0-frames.md) | Dựng lại frame cho log v0 trước khi tính feature | Accepted |
+| [006](adr-006-conditional-spike-choice-target.md) | Tách việc chọn cú đập thành nhãn có điều kiện `spike_choice` | Accepted |
+| [007](adr-007-no-temporal-features-for-spike-choice.md) | Không dùng feature vận tốc cho `spike_choice` trên schema v0 | Accepted |

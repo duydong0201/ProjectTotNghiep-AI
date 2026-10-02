@@ -24,6 +24,11 @@
   ],
   "labels": {
     "move":   {"values": [-1, 0, 1], "description": "-1 lùi xa lưới, 0 đứng, +1 tiến về lưới (trong hệ toạ độ đã lật)"},
-    "action": {"values": ["None", "Jump", "Spike", "Slide", "Serve", "Bump", "Set", "SpikeLight", "SpikeMedium", "SpikeStrong"]}
+    "action": {"values": ["None", "Jump", "Spike", "Slide", "Serve", "Bump", "Set", "SpikeLight", "SpikeMedium", "SpikeStrong"]},
+    "spike_choice": {
+      "values": ["SpikeLight", "SpikeMedium", "SpikeStrong"],
+      "conditional": true,
+      "description": "Nhãn CÓ ĐIỀU KIỆN: chỉ xác định ở frame agent thật sự đập bóng, các frame khác là NaN và bị loại khỏi tập train/đo. Trả lời 'đã quyết định đập thì đập cú nào', không trả lời 'có nên đập không'."
+    }
   }
 }

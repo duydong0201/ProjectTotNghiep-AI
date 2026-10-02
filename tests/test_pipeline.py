@@ -1,5 +1,7 @@
 """Test cho thứ tự feature, lật sân và export C++. Test chia dữ liệu nằm ở test_split.py."""
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -61,8 +63,57 @@ def test_detect_version():
 def test_feature_order_matches_spec(version, maker, agent):
     X, y = build(maker(), version, agent)
     assert list(X.columns) == feature_names(load_spec(version))
-    assert set(y.columns) == {"move", "action"}
+    assert set(y.columns) == {"move", "action", "spike_choice"}
     assert not X.isna().any().any()
+
+
+# ---------------------------------------------------------------- nhãn có điều kiện
+def test_spike_choice_is_defined_only_on_spike_frames():
+    """spike_choice chỉ có giá trị ở frame thật sự đập bóng, các frame khác là NaN để train bỏ qua."""
+    events = ["None", "SpikeLight", "MoveRight", "SpikeMedium", "Bump", "SpikeStrong", "Serve"]
+    df = pd.DataFrame(
+        {
+            "Frame": np.arange(len(events)),
+            "PlayerPosX": 500.0,
+            "PlayerPosY": 265.0,
+            "PlayerEvent": events,
+            "BotPosX": 1900.0,
+            "BotPosY": 265.0,
+            "BotEvent": "None",
+            "match_id": "m",
+        }
+    )
+    _, y = build(df, "v0", "player")
+
+    assert list(y["spike_choice"].dropna()) == ["SpikeLight", "SpikeMedium", "SpikeStrong"]
+    # Bump / Serve / MoveRight là hành động thật nhưng KHÔNG phải đập -> vẫn bị loại
+    assert y["spike_choice"].isna().sum() == 4
+
+
+def test_spike_choice_follows_the_agent_not_the_court():
+    """Đổi agent thì nhãn phải lấy theo nhân vật đang học."""
+    df = pd.DataFrame(
+        {
+            "Frame": [0],
+            "PlayerPosX": [500.0],
+            "PlayerPosY": [265.0],
+            "PlayerEvent": ["SpikeLight"],
+            "BotPosX": [1900.0],
+            "BotPosY": [265.0],
+            "BotEvent": ["SpikeStrong"],
+            "match_id": ["m"],
+        }
+    )
+    assert build(df, "v0", "player")[1]["spike_choice"].iloc[0] == "SpikeLight"
+    assert build(df, "v0", "opponent")[1]["spike_choice"].iloc[0] == "SpikeStrong"
+
+
+def test_spike_choice_in_v1_comes_from_input_intent():
+    df = make_v1()
+    df["o_input_intent"] = 11  # SpikeStrong
+    assert build(df, "v1", "opponent")[1]["spike_choice"].iloc[0] == "SpikeStrong"
+    df["o_input_intent"] = 5  # Bump - không phải cú đập
+    assert build(df, "v1", "opponent")[1]["spike_choice"].isna().all()
 
 
 # ---------------------------------------------------------------- lật sân
@@ -124,3 +175,32 @@ def test_export_tables_match_sklearn(name, params):
     }
     header = render_header(bundle, tables)
     assert "RunGoldenTest" in header and f"kNumTrees    = {len(tables)}" in header
+
+
+def test_header_has_no_invalid_cpp_float_literal():
+    """`0f` / `433f` không biên dịch được: hậu tố f cần dấu thập phân hoặc số mũ.
+
+    Lá thuần (xác suất đúng 0.0 và 1.0) là lúc sinh ra literal sai, nên để cây mọc sâu
+    không giới hạn. Golden test phía Python không bắt được vì nó so số, không biên dịch C++.
+    """
+    X, y = build(make_v0(200), "v0", "opponent")
+    model = create("decision_tree", seed=0).fit(X, y["move"])
+    tables = [tree_tables(model)]
+    bundle = {
+        "target": "move",
+        "model_name": "decision_tree",
+        "schema": "v0",
+        "agent": "opponent",
+        "features": list(X.columns),
+        "classes": [str(c) for c in model.classes_],
+        "golden_X": X.head(3).to_numpy().tolist(),
+        "golden_proba": model.predict_proba(X.head(3)).tolist(),
+    }
+
+    header = render_header(bundle, tables)
+
+    # xác suất lá đúng 0 hoặc 1 phải thực sự có trong header, nếu không test này vô nghĩa
+    assert "0.0f" in header or "1.0f" in header
+    literals = re.findall(r"[-+]?\d[\d.]*(?:[eE][-+]?\d+)?f\b", header)
+    invalid = [t for t in literals if not any(c in t for c in ".eE")]
+    assert not invalid, f"literal float không hợp lệ trong C++: {sorted(set(invalid))}"

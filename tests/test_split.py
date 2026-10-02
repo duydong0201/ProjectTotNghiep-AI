@@ -11,9 +11,18 @@ import pandas as pd
 import pytest
 import yaml
 
-from spike_ai import models as model_zoo
-from spike_ai import train as train_module
-from spike_ai.split import DEV, HOLDOUT, SPLITS, TRAIN, assign_split, group_keys, split_by_hash
+from spike_ai.split import (
+    DEV,
+    HOLDOUT,
+    SPLITS,
+    TRAIN,
+    assert_no_overlap,
+    assign_split,
+    cv_folds,
+    group_keys,
+    split_by_hash,
+    split_report,
+)
 
 SALT = "spike-ai-split-v1"
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
@@ -98,76 +107,64 @@ def test_all_configs_share_the_frozen_salt():
         assert cfg["split"]["salt"] == SALT, path.name
 
 
-# ---------------------------------------------------------------- train.py không dùng holdout
-class _SpyModel:
-    """Model giả ghi lại số dòng được fit và số dòng được predict."""
-
-    fitted_rows: list[int] = []
-    predicted_rows: list[int] = []
-
-    def fit(self, X, y):
-        _SpyModel.fitted_rows.append(len(X))
-        self.classes_ = np.unique(y)
-        return self
-
-    def predict(self, X):
-        _SpyModel.predicted_rows.append(len(X))
-        return np.full(len(X), self.classes_[0])
-
-    def predict_proba(self, X):
-        out = np.zeros((len(X), len(self.classes_)))
-        out[:, 0] = 1.0
-        return out
+def test_zero_holdout_ratio_is_allowed():
+    index = split_by_hash(_groups(20), SALT, 0.2, 0.0)
+    assert len(index[HOLDOUT]) == 0 and len(index[DEV]) > 0
 
 
-def _write_v0_matches(folder: Path, n_matches: int, frames: int = 10) -> None:
-    rng = np.random.default_rng(0)
-    folder.mkdir(parents=True)
-    for i in range(n_matches):
-        pd.DataFrame(
-            {
-                "Frame": np.arange(frames),
-                "PlayerPosX": rng.uniform(100, 1300, frames).round(),
-                "PlayerPosY": 265,
-                "PlayerEvent": "None",
-                "BotPosX": rng.uniform(1450, 2600, frames).round(),
-                "BotPosY": 265,
-                "BotEvent": rng.choice(["None", "MoveLeft", "MoveRight"], frames),
-            }
-        ).to_csv(folder / f"match_{i:03d}.csv", index=False)
+def test_changing_dev_ratio_never_moves_groups_in_or_out_of_holdout():
+    keys = [f"match_{i:03d}" for i in range(200)]
+    a = {k for k in keys if assign_split(k, SALT, 0.1, 0.2) == HOLDOUT}
+    b = {k for k in keys if assign_split(k, SALT, 0.3, 0.2) == HOLDOUT}
+    assert a == b
 
 
-@pytest.mark.parametrize("final", [False, True])
-def test_train_fits_only_on_train_split(tmp_path, monkeypatch, final):
-    frames = 10
-    _write_v0_matches(tmp_path / "data", n_matches=30, frames=frames)
-    (tmp_path / "reports").mkdir()
-    config = {
-        "run_name": "spy",
-        "schema": "v0",
-        "data_dirs": [str(tmp_path / "data")],
-        "agent": "opponent",
-        "targets": ["move"],
-        "split": {"group_by": "match", "dev_ratio": 0.2, "holdout_ratio": 0.2, "salt": SALT},
-        "models": {"spy": {}},
-    }
-    config_path = tmp_path / "spy.yaml"
-    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+# ---------------------------------------------------------------- báo cáo cân bằng
+def test_split_report_warns_about_dominant_group_and_missing_labels():
+    groups = pd.Series(["a"] * 90 + ["b"] * 10 + ["c"] * 50 + ["d"] * 50)
+    labels = pd.Series(["None"] * 100 + ["None"] * 45 + ["Spike"] * 5 + ["None"] * 50)
+    index = {DEV: np.arange(100), TRAIN: np.arange(100, 200)}
+    report, warnings = split_report(groups, index, {"action": labels})
 
-    monkeypatch.setitem(model_zoo.REGISTRY, "spy", lambda seed, **p: _SpyModel())
-    monkeypatch.setattr(train_module, "MODELS_DIR", tmp_path / "models")
-    monkeypatch.setattr(train_module, "REPORTS_DIR", tmp_path / "reports")
-    monkeypatch.setattr(train_module, "plot_confusion_matrix", lambda *a, **k: None)
-    _SpyModel.fitted_rows, _SpyModel.predicted_rows = [], []
+    assert report[DEV]["largest_group"] == "a"
+    assert report[DEV]["largest_group_share"] == pytest.approx(0.9)
+    assert report[TRAIN]["labels"]["action"] == {"None": 95, "Spike": 5}
+    assert any("dev: nhóm 'a' chiếm 90%" in w for w in warnings)
+    assert any("dev: nhãn 'action' thiếu lớp ['Spike']" in w for w in warnings)
 
-    metrics = train_module.run(str(config_path), final=final)
 
-    expected = {name: 0 for name in SPLITS}
-    for i in range(30):
-        expected[assign_split(f"match_{i:03d}", SALT, 0.2, 0.2)] += frames
+def test_split_report_is_quiet_when_balanced():
+    groups = pd.Series(np.repeat(list("abcdefgh"), 10))
+    labels = pd.Series(["None", "Spike"] * 40)
+    index = {TRAIN: np.arange(40), DEV: np.arange(40, 80)}
+    _, warnings = split_report(groups, index, {"action": labels})
+    assert warnings == []
 
-    assert _SpyModel.fitted_rows == [expected[TRAIN]]
-    assert any(k.startswith("dev/") for k in metrics)
-    assert any(k.startswith("holdout/") for k in metrics) == final
-    # không có --final thì model chỉ predict trên dev, không bao giờ chạm holdout
-    assert _SpyModel.predicted_rows == ([expected[DEV], expected[HOLDOUT]] if final else [expected[DEV]])
+
+# ---------------------------------------------------------------- cross-validation
+@pytest.mark.parametrize("mode,n_groups,expected_folds", [("kfold", 12, 5), ("lopo", 6, 6)])
+def test_cv_folds_keep_groups_whole_and_validate_every_row_once(mode, n_groups, expected_folds):
+    groups = pd.Series(np.repeat([f"g{i}" for i in range(n_groups)], 7))
+    folds = cv_folds(groups, mode, n_folds=5)
+    assert len(folds) == expected_folds
+
+    seen = np.zeros(len(groups), dtype=int)
+    for tr, va in folds:
+        assert set(groups.iloc[tr]).isdisjoint(groups.iloc[va])
+        seen[va] += 1
+    assert (seen == 1).all()
+    if mode == "lopo":
+        assert all(groups.iloc[va].nunique() == 1 for _, va in folds)
+
+
+def test_cv_folds_need_enough_groups():
+    with pytest.raises(ValueError, match="kfold cần ít nhất 5"):
+        cv_folds(pd.Series(["a", "b", "c"]), "kfold", n_folds=5)
+    with pytest.raises(ValueError, match="lopo cần ít nhất 2"):
+        cv_folds(pd.Series(["a", "a"]), "lopo")
+
+
+def test_assert_no_overlap():
+    assert_no_overlap(["m1", "m2"], ["m3"])
+    with pytest.raises(ValueError, match="Rò rỉ"):
+        assert_no_overlap(["m1", "m2"], ["m2", "m3"])

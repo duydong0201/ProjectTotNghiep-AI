@@ -8,13 +8,21 @@ agent: opponent
 targets: [move, action]
 split:
   group_by: match
-  dev_ratio: 0.2
-  holdout_ratio: 0.2
+  # 101 trận, độ dài chênh nhau 17..47784 frame -> trận dài nhất chiếm 19,8% dữ liệu,
+  # nên một tập dev duy nhất phụ thuộc quá nhiều vào việc trận đó rơi vào đâu.
+  # Cross-validation 5 fold: mọi trận đều được dùng để đo đúng một lần (ADR-004)
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  # v0 chỉ để chạy thông pipeline, không đủ để một holdout có ý nghĩa (xem ADR-004)
+  holdout_ratio: 0
   # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
   salt: spike-ai-split-v1
 seed: 42
 models:
   majority: {}
+  logreg:
+    class_weight: balanced
   decision_tree:
     max_depth: 8
     min_samples_leaf: 20
