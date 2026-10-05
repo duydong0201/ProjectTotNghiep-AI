@@ -77,3 +77,7 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | decision_tree | cv | 41 | 41 | 0.375 ± 0.250 | 0.217 ± 0.137 | |
 | 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | random_forest | cv | 41 | 41 | 0.631 ± 0.088 | 0.493 ± 0.166 | |
 | 2026-10-02 | spike_v0_human_20261002-191756 | v0 | player | spike_choice | logreg | cv | 41 | 41 | 0.556 ± 0.176 | 0.532 ± 0.178 | |
+| 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | majority | cv | 3896 | 3896 | 0.322 ± 0.008 | 0.162 ± 0.003 | DU LIEU TONG HOP (ADR-008), khong phai nguoi choi. 200 tran / 3.896 mau, 3 lop can nhau |
+| 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | decision_tree | cv | 3896 | 3896 | 0.916 ± 0.008 | 0.916 ± 0.008 | Du lieu tong hop. Tran ly thuyet ~0.92 (nhieu nhan 12%) |
+| 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | random_forest | cv | 3896 | 3896 | 0.917 ± 0.009 | 0.917 ± 0.009 | Du lieu tong hop: 0.917 = GAN CHAM TRAN 0.92 -> pipeline dung, moi that bai tren du lieu that KHONG phai do bug |
+| 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | logreg | cv | 3896 | 3896 | 0.807 ± 0.014 | 0.805 ± 0.013 | Du lieu tong hop. Thap hon cay vi quy luat chia theo dai, khong tuyen tinh |
