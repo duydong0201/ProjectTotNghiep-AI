@@ -81,3 +81,7 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | decision_tree | cv | 3896 | 3896 | 0.916 ± 0.008 | 0.916 ± 0.008 | Du lieu tong hop. Tran ly thuyet ~0.92 (nhieu nhan 12%) |
 | 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | random_forest | cv | 3896 | 3896 | 0.917 ± 0.009 | 0.917 ± 0.009 | Du lieu tong hop: 0.917 = GAN CHAM TRAN 0.92 -> pipeline dung, moi that bai tren du lieu that KHONG phai do bug |
 | 2026-10-05 | spike_v0_synthetic_20261005-230449 | v0 | player | spike_choice | logreg | cv | 3896 | 3896 | 0.807 ± 0.014 | 0.805 ± 0.013 | Du lieu tong hop. Thap hon cay vi quy luat chia theo dai, khong tuyen tinh |
+| 2026-10-05 | spike_v0_human_20261005-235912 | v0 | player | spike_choice | majority | cv | 1401 | 1401 | 0.403 ± 0.011 | 0.192 ± 0.004 | |
+| 2026-10-05 | spike_v0_human_20261005-235912 | v0 | player | spike_choice | decision_tree | cv | 1401 | 1401 | 0.534 ± 0.014 | 0.505 ± 0.021 | |
+| 2026-10-05 | spike_v0_human_20261005-235912 | v0 | player | spike_choice | random_forest | cv | 1401 | 1401 | 0.544 ± 0.021 | 0.517 ± 0.028 | |
+| 2026-10-05 | spike_v0_human_20261005-235912 | v0 | player | spike_choice | logreg | cv | 1401 | 1401 | 0.438 ± 0.005 | 0.390 ± 0.008 | |
