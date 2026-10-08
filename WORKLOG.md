@@ -5,6 +5,44 @@
 
 ---
 
+## [2026-10-08]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | `DatasetLogger` ghi log v1 có cột bóng (phía game) | Done | `Source/System/DatasetLogger.{h,cpp}` + `Config/Match/DatasetLogConfig.h`. Gọi sau `GenerateIntent::update`, trước `ApplyIntentToComponent`. Kiểm chứng: 36 cột đúng schema, **0 frame trùng, 0 lỗ hổng**, phía AI tính được 21 feature không NaN | - |
+| duydong0201 | Sửa 2 bug trong generator v1 | Done | Bot không bao giờ nhảy (`o_y` 1 → 1.723 giá trị); `p_peak_y` dùng trước khi gán | - |
+| duydong0201 | Sửa nhãn `spike_choice` để học được | Done | `spike_intensity()` tính tại frame chạm bóng từ `self_dist_to_net`, `ball_y`, `dx_opp`. macro-F1 **0.389 → 0.876** | - |
+| duydong0201 | Train đủ 3 target trên schema v1 | Done | `move` 0.842 ± 0.006, `action` **0.926 ± 0.005**, `spike_choice` 0.876 ± 0.022. Xem [experiments.md](reports/experiments.md) | - |
+
+**Tổng kết ngày:** Log v1 có cột bóng đã hoạt động, và đây là bước mở ra toàn bộ phần còn lại.
+So sánh cùng pipeline, cùng cách đo, chỉ khác schema:
+
+| Target | v0 (306 trận, 6 feature) | v1 (150 trận, 21 feature) |
+|---|---|---|
+| `move` | 0.638 ± 0.029 | **0.842 ± 0.006** |
+| `action` | 0.258 ± 0.137 (= majority) | **0.926 ± 0.005** |
+| `spike_choice` | 0.517 ± 0.028 | **0.876 ± 0.022** |
+
+`action` từ "bằng majority, hoàn toàn nhiễu" lên 0.926 — đúng như đã dự đoán ở [ADR-007](docs/decisions/adr-007-no-temporal-features-for-spike-choice.md):
+hạn chế của v0 là **thiếu thông tin**, không phải thiếu mẫu, nên chỉ cột bóng mới giải quyết được.
+
+**Hai bài học về phương pháp:**
+
+1. **Nhãn phải phụ thuộc feature, và phải sinh ở đúng frame được ghi.** Lần đầu `spike_choice`
+   trên v1 chỉ đạt 0.389 — thấp hơn cả v0 — vì nhãn lấy từ một danh sách quota độc lập với
+   trạng thái, và nhánh dự phòng thì quyết định trước lúc chạm bóng 12+ frame bằng vị trí cũ,
+   trong khi feature ghi vào log là vị trí sau khi đã chạy tới đón bóng.
+2. **Cách chẩn đoán hiệu quả:** gọi chính hàm sinh nhãn với feature đã ghi rồi so với nhãn thật.
+   Kết quả 26,7% (≈ đoán bừa 3 lớp) chỉ ra ngay nhãn không đến từ hàm đó. Hai lần đoán trước
+   đều sai hướng.
+
+**Lưu ý:** cả ba con số đo trên **dữ liệu tổng hợp theo quy luật đã biết**, thuộc mục "kiểm chứng
+phương pháp". Giá trị thật: khi thu dữ liệu người qua `DatasetLogger`, nếu kết quả thấp thì chắc
+chắn **không phải do pipeline hay feature** — trước đây không phân biệt được hai khả năng này.
+
+**Việc tiếp theo:** thu dữ liệu người chơi thật qua `DatasetLogger` (đổi `DatasetLogConfig::PLAYER_ID`
+cho mỗi người), và sửa action masking trong `AIInputSystem` để model không chọn cú đập bay ra ngoài biên.
+
 ## [2026-10-02]
 
 | Member | Task | Status | Output / Bằng chứng | Time |

@@ -65,6 +65,53 @@ STATE_SPIKE_MEDIUM = 8
 STATE_SPIKE_STRONG = 9
 
 
+# Tỉ lệ nhãn bị đổi sang cú khác. Không có nhiễu thì model đạt ~1.0 và sanity check mất ý
+# nghĩa vì không phân biệt được "pipeline đúng" với "bài toán quá dễ".
+SPIKE_LABEL_NOISE = 0.10
+
+
+def spike_intensity(self_x_view: float, ball_y: float, opp_x_view: float, rng: np.random.Generator) -> int:
+    """Chọn cường độ cú đập TẠI FRAME CHẠM BÓNG, là hàm của trạng thái lúc đó.
+
+    Hai điều kiện để nhãn này học được, cả hai đều từng bị vi phạm:
+
+    1. Chỉ dùng các đại lượng CÓ TRONG LOG ở đúng frame chạm bóng: self_x (qua
+       self_dist_to_net), ball_y, và khoảng cách tới đối thủ (dx_opp). Trước đây nhãn được
+       quyết trước lúc chạm 12+ frame, bằng px lúc đó - nhưng nhân vật còn chạy tới đón bóng
+       nên self_dist_to_net ghi vào log là một giá trị khác. Model thấy trạng thái này mà
+       nhãn lại sinh từ trạng thái khác.
+    2. Không lấy nhãn từ quota định trước. Quota chỉ quyết định CÓ đập hay không (để đảm bảo
+       đủ mẫu mỗi intent), còn ĐẬP CÚ NÀO thì luôn tính bằng hàm này.
+
+    Toạ độ truyền vào phải ở "góc nhìn của agent" (sân phải đã lật qua lưới, x' = 2*NET_X - x)
+    y hệt to_view_x() trong features.py, để một quy luật dùng được cho cả hai phía sân.
+    """
+    score = 0
+
+    # Càng xa lưới càng phải đánh mạnh để bóng sang được sân đối phương
+    dist_to_net = NET_X - self_x_view
+    if dist_to_net > 650.0:
+        score += 2
+    elif dist_to_net > 450.0:
+        score += 1
+
+    # Bóng cao thì đập được mạnh; bóng thấp thì buộc phải nhẹ
+    if ball_y > 450.0:
+        score += 1
+    elif ball_y < 330.0:
+        score -= 1
+
+    # Đối thủ đứng xa thì có chỗ để đập mạnh
+    if (opp_x_view - self_x_view) > 1500.0:
+        score += 1
+
+    score = int(np.clip(score, 0, 2))
+    if rng.random() < SPIKE_LABEL_NOISE:
+        score = int(rng.integers(0, 3))
+
+    return (INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SPIKE_STRONG)[score]
+
+
 def simulate_ball_arc(
     x_start: float, y_start: float, x_target: float, apex_y: float, speed_x: float
 ) -> tuple[float, float, float, float]:
@@ -419,6 +466,12 @@ def simulate_v1_rally(
             else:
                 p_inp_intent = INTENT_BUMP
 
+            # Quota (planned_p_intent) chỉ quyết định CÓ đập hay không. Đập CÚ NÀO thì luôn
+            # tính lại ở đây bằng trạng thái tại frame chạm bóng, nếu không thì nhãn độc lập
+            # với mọi feature và không model nào học được (đo được: 0.389 macro-F1).
+            if p_inp_intent in (INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SPIKE_STRONG):
+                p_inp_intent = spike_intensity(px, ball_y, bx, rng)
+
             p_status = p_inp_intent
             p_cooldown = 320.0
 
@@ -443,13 +496,12 @@ def simulate_v1_rally(
             elif r < 0.65:
                 o_inp_intent = INTENT_SET
             else:
-                dist_opp_net = bx - NET_X
-                if dist_opp_net < 450:
-                    o_inp_intent = INTENT_SPIKE_LIGHT if r < 0.6 else INTENT_SPIKE_MEDIUM
-                elif dist_opp_net > 650:
-                    o_inp_intent = INTENT_SPIKE_STRONG if r < 0.6 else INTENT_SPIKE_MEDIUM
-                else:
-                    o_inp_intent = INTENT_SPIKE_MEDIUM if r < 0.75 else (INTENT_SPIKE_STRONG if r < 0.88 else INTENT_SPIKE_LIGHT)
+                # Bot ở sân phải -> lật toạ độ qua lưới trước khi áp dụng quy luật, y hệt
+                # to_view_x() trong features.py. Nhờ vậy một quy luật dùng cho cả hai phía,
+                # và model train với agent=opponent học được đúng thứ như agent=player.
+                # Dùng chung spike_intensity() thay vì luật riêng: luật cũ ở đây chỉ dựa vào
+                # bx, bỏ qua ball_y, nên model có 21 feature mà không có lý do dùng tới chúng.
+                o_inp_intent = spike_intensity(2.0 * NET_X - bx, ball_y, 2.0 * NET_X - px, rng)
 
             o_status = o_inp_intent
             o_cooldown = 320.0
