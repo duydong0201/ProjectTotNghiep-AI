@@ -97,6 +97,32 @@ def validate_split_config(cfg: dict) -> dict:
     return s
 
 
+def action_window_mask(df: pd.DataFrame, y: pd.DataFrame, half_width: int) -> np.ndarray:
+    """Mặt nạ giữ các frame trong cửa sổ +/- half_width quanh mỗi frame CÓ hành động.
+
+    Vì sao cần: trong log v1 thật, chỉ khoảng 0,7% frame có hành động - phần còn lại là
+    `None` (đứng chờ bóng). Train trên toàn bộ frame vừa chậm vừa làm lớp `None` áp đảo.
+    Lấy cửa sổ quanh lúc chạm bóng giữ LẠI 100% mẫu hành động mà cắt phần lớn frame `None`,
+    đúng kỹ thuật ghi trong PLAN.md GĐ4.
+
+    Cửa sổ KHÔNG tràn qua ranh giới trận: hai trận nối nhau trong cùng DataFrame, frame cuối
+    trận này không liên quan gì tới frame đầu trận sau.
+    """
+    is_action = (y["action"] != "None").to_numpy()
+    keep = np.zeros(len(df), dtype=bool)
+
+    for positions in df.groupby("match_id", sort=False).indices.values():
+        local = is_action[positions]
+        if not local.any():
+            continue
+        hits = np.flatnonzero(local)
+        for h in hits:
+            lo = max(0, h - half_width)
+            hi = min(len(positions), h + half_width + 1)
+            keep[positions[lo:hi]] = True
+    return keep
+
+
 def run(config_path: str, final: bool = False) -> dict:
     cfg = load_config(config_path)
     version, agent, seed = cfg["schema"], cfg["agent"], cfg.get("seed", 42)
@@ -105,6 +131,15 @@ def run(config_path: str, final: bool = False) -> dict:
 
     df = load_data(cfg["data_dirs"], version, cfg.get("game_versions"))
     X, y = build(df, version, agent)
+
+    # Lấy cửa sổ quanh lúc chạm bóng (tuỳ chọn). Phải lọc TRƯỚC khi chia tập, nếu không thì
+    # chỉ số dòng của split không còn khớp với X/y.
+    window = cfg.get("frames_around_action")
+    if window:
+        keep = action_window_mask(df, y, int(window))
+        print(f"frames_around_action={window}: giữ {keep.sum():,}/{len(df):,} frame ({keep.mean():.1%})")
+        df, X, y = df[keep].reset_index(drop=True), X[keep].reset_index(drop=True), y[keep].reset_index(drop=True)
+
     groups = group_keys(df, s["group_by"], agent)
     index = split_by_hash(groups, s["salt"], s["dev_ratio"], s["holdout_ratio"])
 

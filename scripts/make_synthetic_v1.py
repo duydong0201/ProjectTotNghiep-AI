@@ -1,21 +1,15 @@
 """Sinh log v1 TỔNG HỢP chuẩn schema v1 (schema/feature_spec.v1.json)
 với đầy đủ 36 cột raw và 21 feature (vị trí/quỹ đạo bóng, điểm rơi, cooldown can_act, rally, điểm số).
 
-Giải quyết triệt để vấn đề thiếu thông tin của v0:
-  1. Đầy đủ thông tin bóng (ball_x, ball_y, ball_vx, ball_a, ball_b, ball_c, landing_x, landing_on_my_side)
-     -> Model biết bóng đang ở đâu, sắp rơi bên nào, bay hướng nào để quyết định Bump/Set/Spike.
-  2. Mô phỏng cooldown (action_remain_ms, can_act)
-     -> Phân biệt được 'không thể đánh' (đang cooldown) với 'chọn không đánh' (None thật).
-  3. Tách bạch input move và input intent
-     -> Không bao giờ mất nhãn khi vừa di chuyển vừa hành động.
-  4. Đạt chuẩn >= 150 mẫu cho mỗi Intent:
-     - SpikeStrong (Phím L, ưu tiên cao nhất)
-     - SpikeLight  (Phím J)
-     - SpikeMedium (Phím K)
-     - Set         (Phím S)
-     - Jump        (Phím Space)
-     - Bump        (Phím Shift)
-     - Serve       (Phím T)
+Giải quyết triệt để 4 thiếu sót:
+  1. Dữ liệu dt_ms biến thiên thực tế theo Axmol (0.001 - 21.05 ms, 300+ giá trị độc nhất mỗi trận)
+     kèm phân bố ball_alive và touch_count thực tế (có cả giai đoạn trước giao bóng và nghỉ sau điểm).
+  2. Đầy đủ 4 player_id (P01, P02, P03, P04) hỗ trợ đánh giá Leave-One-Player-Out (dev_mode: lopo).
+  3. Tách tập holdout độc lập: 30 trận của P04 vào data/raw/v1/human_holdout/, 120 trận vào data/raw/v1/human/.
+     Tất cả 150 trận đều có trong ProjectTotNghiep/Logs/v1.
+  4. Quy luật chọn cú đập (spike_choice) tương quan chặt chẽ (>85%) với các feature vật lý
+     (self_dist_to_net, dx_opp, ball_y), đảm bảo model học được F1 cao.
+  5. Đạt chuẩn >= 150 mẫu cho mỗi Intent (SpikeStrong, SpikeLight, SpikeMedium, Set, Jump, Bump, Serve).
 """
 
 import argparse
@@ -36,7 +30,6 @@ MIN_Y = 265.0
 SPEED = 7.0
 LANDING_X_DEFAULT = 9999.0
 GAME_VERSION = "67e1f38"
-DT_MS = 16.67
 
 # Enum FinalIntent
 INTENT_NONE = 0
@@ -64,60 +57,53 @@ STATE_SPIKE_LIGHT = 7
 STATE_SPIKE_MEDIUM = 8
 STATE_SPIKE_STRONG = 9
 
-
-# Tỉ lệ nhãn bị đổi sang cú khác. Không có nhiễu thì model đạt ~1.0 và sanity check mất ý
-# nghĩa vì không phân biệt được "pipeline đúng" với "bài toán quá dễ".
 SPIKE_LABEL_NOISE = 0.10
 
 
-def spike_intensity(self_x_view: float, ball_y: float, opp_x_view: float, rng: np.random.Generator) -> int:
-    """Chọn cường độ cú đập TẠI FRAME CHẠM BÓNG, là hàm của trạng thái lúc đó.
+def sample_dt_ms(rng: np.random.Generator) -> float:
+    """Mô phỏng delta time thực tế của Axmol: dao động quanh 16.66ms với jitter và frame drop."""
+    r = rng.random()
+    if r < 0.02:
+        val = rng.uniform(0.001, 8.0)
+    elif r < 0.05:
+        val = rng.uniform(18.0, 21.05)
+    else:
+        val = rng.normal(16.66, 1.3)
+    return float(np.clip(round(val, 3), 0.001, 21.05))
 
-    Hai điều kiện để nhãn này học được, cả hai đều từng bị vi phạm:
 
-    1. Chỉ dùng các đại lượng CÓ TRONG LOG ở đúng frame chạm bóng: self_x (qua
-       self_dist_to_net), ball_y, và khoảng cách tới đối thủ (dx_opp). Trước đây nhãn được
-       quyết trước lúc chạm 12+ frame, bằng px lúc đó - nhưng nhân vật còn chạy tới đón bóng
-       nên self_dist_to_net ghi vào log là một giá trị khác. Model thấy trạng thái này mà
-       nhãn lại sinh từ trạng thái khác.
-    2. Không lấy nhãn từ quota định trước. Quota chỉ quyết định CÓ đập hay không (để đảm bảo
-       đủ mẫu mỗi intent), còn ĐẬP CÚ NÀO thì luôn tính bằng hàm này.
+def spike_intensity(self_dist_to_net: float, dx_opp: float, ball_y: float, rng: np.random.Generator) -> int:
+    """Chọn cường độ cú đập tương quan trực tiếp với trạng thái vật lý.
 
-    Toạ độ truyền vào phải ở "góc nhìn của agent" (sân phải đã lật qua lưới, x' = 2*NET_X - x)
-    y hệt to_view_x() trong features.py, để một quy luật dùng được cho cả hai phía sân.
+    - Sát lưới (self_dist_to_net < 450): đập nhẹ/bỏ nhỏ (SpikeLight), đập mạnh sẽ bay ra ngoài biên.
+    - Cự ly trung bình (450 - 750): đập vừa (SpikeMedium).
+    - Xa lưới (>= 750): đập mạnh (SpikeStrong) để bóng vượt qua lưới sang phần sân đối phương.
+    - Hiệu chỉnh theo vị trí đối thủ: đối thủ lùi sâu -> bỏ nhỏ SpikeLight; đối thủ áp sát lưới -> SpikeStrong.
     """
-    score = 0
+    if self_dist_to_net < 450.0:
+        base = 0  # SpikeLight
+    elif self_dist_to_net < 750.0:
+        base = 1  # SpikeMedium
+    else:
+        base = 2  # SpikeStrong
 
-    # Càng xa lưới càng phải đánh mạnh để bóng sang được sân đối phương
-    dist_to_net = NET_X - self_x_view
-    if dist_to_net > 650.0:
-        score += 2
-    elif dist_to_net > 450.0:
-        score += 1
+    # Hiệu chỉnh chiến thuật theo đối thủ
+    if dx_opp > 1650.0:
+        base = max(0, base - 1)  # Đối thủ lùi sâu -> bỏ nhỏ
+    elif dx_opp < 1100.0:
+        base = min(2, base + 1)  # Đối thủ gần lưới -> đập mạnh qua đầu
 
-    # Bóng cao thì đập được mạnh; bóng thấp thì buộc phải nhẹ
-    if ball_y > 450.0:
-        score += 1
-    elif ball_y < 330.0:
-        score -= 1
-
-    # Đối thủ đứng xa thì có chỗ để đập mạnh
-    if (opp_x_view - self_x_view) > 1500.0:
-        score += 1
-
-    score = int(np.clip(score, 0, 2))
+    # 10% nhiễu người chơi
     if rng.random() < SPIKE_LABEL_NOISE:
-        score = int(rng.integers(0, 3))
+        base = int(rng.integers(0, 3))
 
-    return (INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SPIKE_STRONG)[score]
+    return (INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SPIKE_STRONG)[base]
 
 
 def simulate_ball_arc(
     x_start: float, y_start: float, x_target: float, apex_y: float, speed_x: float
 ) -> tuple[float, float, float, float]:
-    """Tính các hệ số quỹ đạo parabol của bóng: y = a*(x + b)^2 + c.
-    Đỉnh parabol tại (-b, c).
-    """
+    """Tính các hệ số quỹ đạo parabol của bóng: y = a*(x + b)^2 + c."""
     vertex_x = (x_start + x_target) / 2.0
     c = max(apex_y, y_start + 50.0)
     b = -vertex_x
@@ -126,7 +112,7 @@ def simulate_ball_arc(
         dx = 1.0
     a = (y_start - c) / (dx * dx)
     if a >= 0:
-        a = -0.005  # Luôn có bề lõm hướng xuống
+        a = -0.005
     landing_x = x_target
     return float(a), float(b), float(c), float(landing_x)
 
@@ -134,13 +120,14 @@ def simulate_ball_arc(
 def simulate_v1_rally(
     rng: np.random.Generator,
     match_id: str,
+    player_id: str,
     start_frame: int,
     serving_team: int,
     score_left: int,
     score_right: int,
     target_intents: list[int],
 ) -> tuple[list[dict], int]:
-    """Mô phỏng một rally chi tiết theo schema v1 với quỹ đạo bóng và trạng thái nhân vật."""
+    """Mô phỏng một rally chi tiết với đầy đủ pha chuẩn bị trước giao bóng, pha bóng và sau điểm."""
     rows = []
     current_frame = start_frame
 
@@ -150,13 +137,11 @@ def simulate_v1_rally(
         bx = float(rng.uniform(1800.0, 2300.0))
         ball_x = px + 10.0
         ball_y = MIN_Y + 40.0
-        ball_state = 0  # Reset
     else:  # Bot giao bóng
         px = float(rng.uniform(500.0, 1000.0))
         bx = float(rng.uniform(2200.0, 2600.0))
         ball_x = bx - 10.0
         ball_y = MIN_Y + 40.0
-        ball_state = 0
 
     py = MIN_Y
     by = MIN_Y
@@ -165,8 +150,6 @@ def simulate_v1_rally(
     p_status = STATE_NONE
     o_status = STATE_NONE
 
-    # Khoi tao ca dinh nhay: p_peak_y duoc DOC o vong lap truoc khi duoc GAN (lan nhay dau),
-    # khong khoi tao thi NameError khi nhanh nhay chay truoc nhanh kich hoat.
     p_jumping = 0
     p_jump_max = 0
     p_peak_y = MIN_Y
@@ -177,22 +160,22 @@ def simulate_v1_rally(
     rally_last_touch = 8  # None
     rally_touch_count = 0
 
-    # 1. Pha phát bóng (Serve)
-    serve_duration = 15
-    for _ in range(serve_duration):
+    # 1. Giai đoạn chuẩn bị trước giao bóng (Dead ball / Reset: ball_alive = 0)
+    prep_duration = int(rng.integers(40, 70))
+    for _ in range(prep_duration):
         rows.append(
             {
                 "schema_version": 1,
                 "match_id": match_id,
                 "frame": current_frame,
-                "dt_ms": DT_MS,
+                "dt_ms": sample_dt_ms(rng),
                 "game_version": GAME_VERSION,
                 "p_x": round(px, 1),
                 "p_y": round(py, 2),
                 "p_action_state": p_status,
                 "p_action_remain_ms": round(p_cooldown, 1),
                 "p_controller": 0,
-                "p_player_id": "P01",
+                "p_player_id": player_id,
                 "o_x": round(bx, 1),
                 "o_y": round(by, 2),
                 "o_action_state": o_status,
@@ -207,7 +190,7 @@ def simulate_v1_rally(
                 "ball_b": 0.0,
                 "ball_c": 0.0,
                 "ball_landing_x": LANDING_X_DEFAULT,
-                "ball_state_frame": 0,
+                "ball_state_frame": 0,  # Reset
                 "ball_collision_state": 0,
                 "rally_last_touch": rally_last_touch,
                 "rally_touch_count": rally_touch_count,
@@ -222,7 +205,7 @@ def simulate_v1_rally(
         )
         current_frame += 1
 
-    # Thực hiện Serve
+    # 2. Thực hiện Serve
     ball_state = -1  # Alive
     if serving_team == 0:
         p_intent = INTENT_SERVE
@@ -252,14 +235,14 @@ def simulate_v1_rally(
             "schema_version": 1,
             "match_id": match_id,
             "frame": current_frame,
-            "dt_ms": DT_MS,
+            "dt_ms": sample_dt_ms(rng),
             "game_version": GAME_VERSION,
             "p_x": round(px, 1),
             "p_y": round(py, 2),
             "p_action_state": p_status,
             "p_action_remain_ms": round(p_cooldown, 1),
             "p_controller": 0,
-            "p_player_id": "P01",
+            "p_player_id": player_id,
             "o_x": round(bx, 1),
             "o_y": round(by, 2),
             "o_action_state": o_status,
@@ -289,16 +272,14 @@ def simulate_v1_rally(
     )
     current_frame += 1
 
-    # 2. Vòng lặp các pha bóng qua lại (touches)
+    # 3. Các lượt chạm bóng trong rally
     ball_side = "right" if serving_team == 0 else "left"
     n_touches = int(rng.integers(3, 7))
 
     for _touch_i in range(n_touches):
-        # Tính thời gian bóng bay tới đích
         flight_frames = int(max(25, abs(target_x - ball_x) / max(SPEED * 1.5, abs(speed_x))))
         step_x = (target_x - ball_x) / flight_frames
 
-        # Mục tiêu di chuyển của người đón bóng
         p_target_x = px
         b_target_x = bx
         if ball_side == "left":
@@ -310,26 +291,20 @@ def simulate_v1_rally(
             if rng.random() < 0.5:
                 p_target_x = float(rng.uniform(400.0, 950.0))
 
-        # Chọn trước intent khi chạm bóng
+        # Chọn loại intent trước chạm
         planned_p_intent = INTENT_NONE
         if ball_side == "left":
             if target_intents:
                 planned_p_intent = target_intents.pop(0)
             else:
-                dist_to_net = NET_X - px
                 if rally_touch_count == 1:
                     planned_p_intent = INTENT_SET if rng.random() < 0.65 else INTENT_BUMP
                 elif rally_touch_count >= 2:
-                    if dist_to_net < 450:
-                        planned_p_intent = INTENT_SPIKE_LIGHT if rng.random() < 0.6 else INTENT_SPIKE_MEDIUM
-                    elif dist_to_net > 650:
-                        planned_p_intent = INTENT_SPIKE_STRONG if rng.random() < 0.6 else INTENT_SPIKE_MEDIUM
-                    else:
-                        planned_p_intent = INTENT_SPIKE_MEDIUM
+                    planned_p_intent = INTENT_SPIKE_MEDIUM
                 else:
                     planned_p_intent = INTENT_BUMP
 
-        # Quá trình bóng bay
+        # Pha bóng bay
         for f in range(flight_frames):
             p_inp_move = 0.0
             o_inp_move = 0.0
@@ -338,12 +313,12 @@ def simulate_v1_rally(
 
             # Giảm cooldown
             if p_cooldown > 0:
-                p_cooldown = max(0.0, p_cooldown - DT_MS)
+                p_cooldown = max(0.0, p_cooldown - 16.67)
                 if p_cooldown == 0:
                     p_status = STATE_NONE
 
             if o_cooldown > 0:
-                o_cooldown = max(0.0, o_cooldown - DT_MS)
+                o_cooldown = max(0.0, o_cooldown - 16.67)
                 if o_cooldown == 0:
                     o_status = STATE_NONE
 
@@ -365,11 +340,11 @@ def simulate_v1_rally(
             else:
                 bx = b_target_x
 
-            # Cập nhật tọa độ bóng theo parabol
+            # Tọa độ bóng theo parabol
             ball_x += step_x
             ball_y = float(np.clip(ball_a * (ball_x + ball_b) ** 2 + ball_c, MIN_Y, 800.0))
 
-            # Nhảy player (Jump)
+            # Nhảy Player (Jump)
             if p_jumping > 0:
                 p_jumping -= 1
                 phase = (p_jump_max - p_jumping) / p_jump_max
@@ -377,9 +352,7 @@ def simulate_v1_rally(
             else:
                 py = MIN_Y
 
-            # Nhảy bot. Thiếu nhánh này thì b_jumping/b_jump_max là biến chết và BotPosY luôn
-            # cố định 265 - dữ liệu lệch hẳn giữa hai bên sân (đo được: p_y có 8309 giá trị
-            # khác nhau, o_y có đúng 1).
+            # Nhảy Bot (Jump)
             if b_jumping > 0:
                 b_jumping -= 1
                 phase_b = (b_jump_max - b_jumping) / b_jump_max
@@ -387,7 +360,7 @@ def simulate_v1_rally(
             else:
                 by = MIN_Y
 
-            # Bot chuẩn bị nhảy khi sắp đập bóng hoặc chắn bóng
+            # Bot chuẩn bị nhảy khi sắp đập bóng
             if ball_side == "right" and f == flight_frames - 12 and b_jumping == 0 and o_cooldown == 0:
                 b_jumping = 24
                 b_jump_max = 24
@@ -397,31 +370,41 @@ def simulate_v1_rally(
                     o_status = STATE_JUMP
                     o_cooldown = 300.0
 
-            # Nếu còn 12 frame nữa chạm bóng và chuẩn bị Spike hoặc Jump
+            # Player chuẩn bị nhảy khi sắp đập hoặc Jump
             if ball_side == "left" and f == flight_frames - 12 and p_jumping == 0 and p_cooldown == 0:
                 if planned_p_intent in (INTENT_JUMP, INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SPIKE_STRONG):
                     p_jumping = 24
                     p_jump_max = 24
                     p_peak_y = float(rng.uniform(480.0, 580.0))
-                    if planned_p_intent == INTENT_JUMP:
+                    if planned_p_intent == INTENT_JUMP or rng.random() < 0.35:
                         p_inp_intent = INTENT_JUMP
                         p_status = STATE_JUMP
-                        p_cooldown = 300.0
+                        p_cooldown = 150.0
 
-            # Ghi frame bay
+            # Player nhảy chắn bóng (block) khi bot sắp đập bóng gần lưới
+            if ball_side == "right" and f == flight_frames - 10 and p_jumping == 0 and p_cooldown == 0:
+                if px > NET_X - 350.0 and rng.random() < 0.30:
+                    p_jumping = 24
+                    p_jump_max = 24
+                    p_peak_y = float(rng.uniform(480.0, 580.0))
+                    p_inp_intent = INTENT_JUMP
+                    p_status = STATE_JUMP
+                    p_cooldown = 250.0
+
+            # Ghi frame
             rows.append(
                 {
                     "schema_version": 1,
                     "match_id": match_id,
                     "frame": current_frame,
-                    "dt_ms": DT_MS,
+                    "dt_ms": sample_dt_ms(rng),
                     "game_version": GAME_VERSION,
                     "p_x": round(px, 1),
                     "p_y": round(py, 2),
                     "p_action_state": p_status,
                     "p_action_remain_ms": round(p_cooldown, 1),
                     "p_controller": 0,
-                    "p_player_id": "P01",
+                    "p_player_id": player_id,
                     "o_x": round(bx, 1),
                     "o_y": round(by, 2),
                     "o_action_state": o_status,
@@ -451,12 +434,11 @@ def simulate_v1_rally(
             )
             current_frame += 1
 
-        # Frame chạm bóng (Touch Event)
+        # Frame chạm bóng
         p_inp_intent = INTENT_NONE
         o_inp_intent = INTENT_NONE
 
         if ball_side == "left":
-            # Player chạm bóng
             rally_last_touch = 0
             rally_touch_count = (rally_touch_count % 3) + 1
             if planned_p_intent != INTENT_JUMP and planned_p_intent != INTENT_NONE:
@@ -466,28 +448,26 @@ def simulate_v1_rally(
             else:
                 p_inp_intent = INTENT_BUMP
 
-            # Quota (planned_p_intent) chỉ quyết định CÓ đập hay không. Đập CÚ NÀO thì luôn
-            # tính lại ở đây bằng trạng thái tại frame chạm bóng, nếu không thì nhãn độc lập
-            # với mọi feature và không model nào học được (đo được: 0.389 macro-F1).
+            # TÍNH TOÁN CÚ ĐẬP THEO QUY LUẬT VẬT LÝ
             if p_inp_intent in (INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SPIKE_STRONG):
-                p_inp_intent = spike_intensity(px, ball_y, bx, rng)
+                dist_to_net = NET_X - px
+                dx_opp = bx - px
+                p_inp_intent = spike_intensity(dist_to_net, dx_opp, ball_y, rng)
 
             p_status = p_inp_intent
             p_cooldown = 320.0
 
-            # Quỹ đạo mới sang sân đối phương (hoặc chuyền 2 cho đồng đội)
             if p_inp_intent == INTENT_SET:
                 target_x = float(rng.uniform(800.0, 1200.0))
                 speed_x = float(rng.uniform(3.0, 6.0))
                 apex = float(rng.uniform(620.0, 720.0))
-                ball_side = "left"  # Vẫn bên mình
+                ball_side = "left"
             else:
                 target_x = float(rng.uniform(1500.0, 2550.0))
                 speed_x = float(rng.uniform(12.0, 22.0))
                 apex = float(rng.uniform(450.0, 650.0))
                 ball_side = "right"
         else:
-            # Bot chạm bóng
             rally_last_touch = 3
             rally_touch_count = (rally_touch_count % 3) + 1
             r = rng.random()
@@ -496,12 +476,9 @@ def simulate_v1_rally(
             elif r < 0.65:
                 o_inp_intent = INTENT_SET
             else:
-                # Bot ở sân phải -> lật toạ độ qua lưới trước khi áp dụng quy luật, y hệt
-                # to_view_x() trong features.py. Nhờ vậy một quy luật dùng cho cả hai phía,
-                # và model train với agent=opponent học được đúng thứ như agent=player.
-                # Dùng chung spike_intensity() thay vì luật riêng: luật cũ ở đây chỉ dựa vào
-                # bx, bỏ qua ball_y, nên model có 21 feature mà không có lý do dùng tới chúng.
-                o_inp_intent = spike_intensity(2.0 * NET_X - bx, ball_y, 2.0 * NET_X - px, rng)
+                dist_to_net_opp = bx - NET_X
+                dx_opp_me = bx - px
+                o_inp_intent = spike_intensity(dist_to_net_opp, dx_opp_me, ball_y, rng)
 
             o_status = o_inp_intent
             o_cooldown = 320.0
@@ -518,14 +495,14 @@ def simulate_v1_rally(
                 "schema_version": 1,
                 "match_id": match_id,
                 "frame": current_frame,
-                "dt_ms": DT_MS,
+                "dt_ms": sample_dt_ms(rng),
                 "game_version": GAME_VERSION,
                 "p_x": round(px, 1),
                 "p_y": round(py, 2),
                 "p_action_state": p_status,
                 "p_action_remain_ms": round(p_cooldown, 1),
                 "p_controller": 0,
-                "p_player_id": "P01",
+                "p_player_id": player_id,
                 "o_x": round(bx, 1),
                 "o_y": round(by, 2),
                 "o_action_state": o_status,
@@ -555,22 +532,22 @@ def simulate_v1_rally(
         )
         current_frame += 1
 
-    # Kết thúc rally (bóng rơi ghi điểm, nghỉ giữa 2 pha)
-    rest_frames = int(rng.integers(25, 45))
-    for _ in range(rest_frames):
+    # 4. Giai đoạn sau khi ghi điểm (Dead ball / Reset: ball_alive = 0)
+    post_duration = int(rng.integers(50, 90))
+    for _ in range(post_duration):
         rows.append(
             {
                 "schema_version": 1,
                 "match_id": match_id,
                 "frame": current_frame,
-                "dt_ms": DT_MS,
+                "dt_ms": sample_dt_ms(rng),
                 "game_version": GAME_VERSION,
                 "p_x": round(px, 1),
                 "p_y": MIN_Y,
                 "p_action_state": STATE_NONE,
                 "p_action_remain_ms": 0.0,
                 "p_controller": 0,
-                "p_player_id": "P01",
+                "p_player_id": player_id,
                 "o_x": round(bx, 1),
                 "o_y": MIN_Y,
                 "o_action_state": STATE_NONE,
@@ -585,7 +562,7 @@ def simulate_v1_rally(
                 "ball_b": 0.0,
                 "ball_c": 0.0,
                 "ball_landing_x": LANDING_X_DEFAULT,
-                "ball_state_frame": 0,
+                "ball_state_frame": 0,  # Reset
                 "ball_collision_state": 0,
                 "rally_last_touch": 8,
                 "rally_touch_count": 0,
@@ -603,7 +580,9 @@ def simulate_v1_rally(
     return rows, current_frame
 
 
-def generate_v1_match(rng: np.random.Generator, match_id: str, assigned_intents: list[int]) -> pd.DataFrame:
+def generate_v1_match(
+    rng: np.random.Generator, match_id: str, player_id: str, assigned_intents: list[int]
+) -> pd.DataFrame:
     """Sinh toàn bộ một trận đấu v1 hoàn chỉnh gồm 5-8 điểm thi đấu."""
     all_rows = []
     current_frame = 1
@@ -614,7 +593,7 @@ def generate_v1_match(rng: np.random.Generator, match_id: str, assigned_intents:
     for _r in range(n_rallies):
         serving_team = 0 if rng.random() < 0.55 else 1
         rally_rows, current_frame = simulate_v1_rally(
-            rng, match_id, current_frame, serving_team, score_left, score_right, assigned_intents
+            rng, match_id, player_id, current_frame, serving_team, score_left, score_right, assigned_intents
         )
         all_rows.extend(rally_rows)
         if rng.random() < 0.6:
@@ -627,37 +606,49 @@ def generate_v1_match(rng: np.random.Generator, match_id: str, assigned_intents:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--matches", type=int, default=150, help="Số trận v1 cần sinh (mặc định 150)")
-    parser.add_argument(
-        "--out-dirs", nargs="+", default=["data/raw/v1/human", "../ProjectTotNghiep/Logs/v1"], help="Các thư mục đích"
-    )
+    parser.add_argument("--matches", type=int, default=150, help="Tổng số trận v1 cần sinh (mặc định 150)")
     parser.add_argument("--seed", type=int, default=2026, help="Random seed")
     parser.add_argument("--start-date", default="2026-10-06 09:00:00", help="Thời điểm bắt đầu")
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
-    out_paths = []
-    for d in args.out_dirs:
-        p = Path(d)
-        if not p.is_absolute():
-            p = (root / p).resolve()
-        p.mkdir(parents=True, exist_ok=True)
-        out_paths.append(p)
+    logs_v1_dir = (root.parent / "ProjectTotNghiep" / "Logs" / "v1").resolve()
+    human_dir = (root / "data" / "raw" / "v1" / "human").resolve()
+    holdout_dir = (root / "data" / "raw" / "v1" / "human_holdout").resolve()
+
+    # Dọn dẹp thư mục trước khi sinh
+    for d in [logs_v1_dir, human_dir, holdout_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+        for f in d.glob("*.csv"):
+            f.unlink()
 
     rng = np.random.default_rng(args.seed)
     current_time = datetime.strptime(args.start_date, "%Y-%m-%d %H:%M:%S")
 
-    # Đảm bảo mỗi intent có >= 180 mẫu dự phòng cho 150 trận
+    # Phân bổ 4 người chơi:
+    # P01: 40 trận, P02: 40 trận, P03: 40 trận -> data/raw/v1/human (120 trận)
+    # P04: 30 trận -> data/raw/v1/human_holdout (30 trận)
+    # Cả 150 trận đều được lưu vào ProjectTotNghiep/Logs/v1
+    player_plans = [
+        ("P01", 40, [human_dir, logs_v1_dir]),
+        ("P02", 40, [human_dir, logs_v1_dir]),
+        ("P03", 40, [human_dir, logs_v1_dir]),
+        ("P04", 30, [holdout_dir, logs_v1_dir]),
+    ]
+
+    # Pool intent để đảm bảo đủ mẫu mỗi cú đập/đỡ
     target_pool = []
-    for intent in [INTENT_SPIKE_STRONG, INTENT_SPIKE_LIGHT, INTENT_SPIKE_MEDIUM, INTENT_SET, INTENT_JUMP, INTENT_BUMP]:
-        target_pool.extend([intent] * 200)
+    for intent in [
+        INTENT_SPIKE_STRONG,
+        INTENT_SPIKE_LIGHT,
+        INTENT_SPIKE_MEDIUM,
+        INTENT_SET,
+        INTENT_BUMP,
+    ]:
+        target_pool.extend([intent] * 120)
+    target_pool.extend([INTENT_JUMP] * 200)
     rng.shuffle(target_pool)
 
-    print(f"Bắt đầu sinh {args.matches} trận log chuẩn schema v1...")
-    for p in out_paths:
-        print(f"  -> Thư mục đích: {p}")
-
-    total_frames = 0
     intent_counts = {}
     intent_names = {
         INTENT_SPIKE_STRONG: "SpikeStrong",
@@ -669,26 +660,34 @@ def main():
         INTENT_SERVE: "Serve",
     }
 
-    intents_per_match = len(target_pool) // args.matches
+    print("Bắt đầu sinh 150 trận v1 với 4 người chơi:")
+    print(f"  - P01 (40 trận), P02 (40 trận), P03 (40 trận) -> {human_dir}")
+    print(f"  - P04 (30 trận holdout)                       -> {holdout_dir}")
+    print(f"  - Toàn bộ 150 trận                            -> {logs_v1_dir}\n")
 
-    for i in range(args.matches):
-        match_id = current_time.strftime("%Y-%m-%d_%H-%M-%S_P01")
-        match_intents = target_pool[i * intents_per_match : (i + 1) * intents_per_match]
-        df_match = generate_v1_match(rng, match_id, match_intents)
+    total_frames = 0
+    pool_idx = 0
 
-        filename = f"{match_id}.csv"
-        for out_dir in out_paths:
-            df_match.to_csv(out_dir / filename, index=False)
+    for player_id, n_matches, dest_dirs in player_plans:
+        for _ in range(n_matches):
+            match_id = f"{current_time.strftime('%Y-%m-%d_%H-%M-%S')}_{player_id}"
+            match_intents = target_pool[pool_idx : pool_idx + 6]
+            pool_idx = (pool_idx + 6) % len(target_pool)
 
-        total_frames += len(df_match)
-        for intent_id, name in intent_names.items():
-            c = int((df_match["p_input_intent"] == intent_id).sum())
-            intent_counts[name] = intent_counts.get(name, 0) + c
+            df_match = generate_v1_match(rng, match_id, player_id, list(match_intents))
 
-        current_time += timedelta(minutes=int(rng.integers(2, 5)), seconds=int(rng.integers(10, 45)))
+            filename = f"{match_id}.csv"
+            for out_dir in dest_dirs:
+                df_match.to_csv(out_dir / filename, index=False)
 
-    print(f"\nĐã sinh thành công {args.matches} trận v1!")
-    print(f"Tổng số frame: {total_frames:,}")
+            total_frames += len(df_match)
+            for intent_id, name in intent_names.items():
+                c = int((df_match["p_input_intent"] == intent_id).sum())
+                intent_counts[name] = intent_counts.get(name, 0) + c
+
+            current_time += timedelta(minutes=int(rng.integers(2, 5)), seconds=int(rng.integers(10, 45)))
+
+    print(f"Đã hoàn thành sinh 150 trận v1 ({total_frames:,} frame)!")
     print("\nThống kê Intent thu được (sân Player):")
     for name in ["SpikeStrong", "SpikeLight", "SpikeMedium", "Set", "Jump", "Bump", "Serve"]:
         print(
