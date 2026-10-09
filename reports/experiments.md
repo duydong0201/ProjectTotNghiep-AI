@@ -105,3 +105,31 @@ nhận xét về kết quả. Bảng này sẽ là nguồn chính cho chương "
 | 2026-10-08 | human_v1_20261008-191715 | v1 | player | action | decision_tree | cv | 412107 | 412107 | 0.999 ± 0.000 | 0.924 ± 0.007 | Xem random_forest cung run |
 | 2026-10-08 | human_v1_20261008-191715 | v1 | player | action | random_forest | cv | 412107 | 412107 | 0.999 ± 0.000 | 0.926 ± 0.005 | move 0.842 (v0: 0.638) | action 0.926 (v0: 0.258 = bang majority). Cot bong mo ra ca hai. Tung lop action: None/Set/Serve 1.00, Jump 0.99, Bump 0.89, SpikeMedium 0.79 (yeu nhat vi la nhanh giua, nhan phan lon nhieu nhan) |
 | 2026-10-08 | human_v1_20261008-191715 | v1 | player | action | logreg | cv | 412107 | 412107 | 0.992 ± 0.000 | 0.675 ± 0.007 | action 0.675 - tuyen tinh khong du cho 8 lop |
+| 2026-10-08 | spike_v1_20261008-212417 | v1 | player | spike_choice | majority | cv | 1466 | 1466 | 0.538 ± 0.025 | 0.233 ± 0.007 | |
+| 2026-10-08 | spike_v1_20261008-212417 | v1 | player | spike_choice | decision_tree | cv | 1466 | 1466 | 0.417 ± 0.016 | 0.389 ± 0.019 | |
+| 2026-10-08 | spike_v1_20261008-212417 | v1 | player | spike_choice | random_forest | cv | 1466 | 1466 | 0.383 ± 0.016 | 0.376 ± 0.017 | |
+| 2026-10-08 | spike_v1_20261008-212417 | v1 | player | spike_choice | logreg | cv | 1466 | 1466 | 0.378 ± 0.016 | 0.372 ± 0.014 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | move | majority | cv | 405456 | 405456 | 0.701 ± 0.010 | 0.275 ± 0.002 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | move | decision_tree | cv | 405456 | 405456 | 0.836 ± 0.005 | 0.789 ± 0.008 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | move | random_forest | cv | 405456 | 405456 | 0.879 ± 0.004 | 0.836 ± 0.007 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | move | logreg | cv | 405456 | 405456 | 0.604 ± 0.008 | 0.558 ± 0.011 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | action | majority | cv | 405456 | 405456 | 0.992 ± 0.000 | 0.125 ± 0.000 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | action | decision_tree | cv | 405456 | 405456 | 0.997 ± 0.000 | 0.730 ± 0.012 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | action | random_forest | cv | 405456 | 405456 | 0.998 ± 0.000 | 0.757 ± 0.008 | |
+| 2026-10-08 | human_v1_20261008-212442 | v1 | player | action | logreg | cv | 405456 | 405456 | 0.992 ± 0.001 | 0.571 ± 0.020 | |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | move | majority | cv | 124172 | 124172 | 0.693 ± 0.007 | 0.273 ± 0.002 | 150 tran / 4 nguoi choi (P01-P04). cua so +/-20 frame quanh luc cham bong (giu 124.172/483.329 frame = 25,7%, giu 100% mau hanh dong) |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | move | decision_tree | cv | 124172 | 124172 | 0.835 ± 0.008 | 0.752 ± 0.012 | 0.752 |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | move | random_forest | cv | 124172 | 124172 | 0.840 ± 0.006 | 0.765 ± 0.011 | 0.765 - diem yeu con lai cua bo nay |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | move | logreg | cv | 124172 | 124172 | 0.676 ± 0.009 | 0.604 ± 0.013 | Tuyen tinh khong du |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | action | majority | cv | 124172 | 124172 | 0.971 ± 0.000 | 0.123 ± 0.000 | Doan toan None: acc 0.971 nhung macro-F1 0.123 |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | action | decision_tree | cv | 124172 | 124172 | 0.997 ± 0.000 | 0.892 ± 0.007 | 0.892 - chi kem RF 0.019 ma header nho hon ~100 lan |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | action | random_forest | cv | 124172 | 124172 | 0.998 ± 0.000 | 0.911 ± 0.014 | 0.911 = 7,4 lan baseline. Tung lop: None/Set/Serve/Jump 1.00, Bump 0.92, SpikeMedium 0.85, SpikeStrong 0.84, SpikeLight 0.69 |
+| 2026-10-09 | human_v1_20261009-134123 | v1 | player | action | logreg | cv | 124172 | 124172 | 0.967 ± 0.003 | 0.602 ± 0.019 | 0.602 |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | move | majority | lopo | 124172 | 124172 | 0.694 ± 0.011 | 0.273 ± 0.003 | |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | move | decision_tree | lopo | 124172 | 124172 | 0.828 ± 0.008 | 0.743 ± 0.013 | |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | move | random_forest | lopo | 124172 | 124172 | 0.838 ± 0.008 | 0.761 ± 0.011 | LOPO 0.761 vs kfold 0.765 -> mat 0.004 |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | move | logreg | lopo | 124172 | 124172 | 0.675 ± 0.009 | 0.603 ± 0.012 | |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | action | majority | lopo | 124172 | 124172 | 0.971 ± 0.000 | 0.123 ± 0.000 | |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | action | decision_tree | lopo | 124172 | 124172 | 0.997 ± 0.000 | 0.899 ± 0.006 | |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | action | random_forest | lopo | 124172 | 124172 | 0.997 ± 0.000 | 0.908 ± 0.012 | LOPO 0.908 vs kfold 0.911 -> mat 0.003. Train 3 nguoi, test nguoi thu 4 chua tung thay -> model hoc quy luat chung, khong hoc thuoc tung nguoi. Luu y: 4 nguoi co the qua giong nhau nen con so nay co the de dai |
+| 2026-10-09 | human_v1_lopo_20261009-134438 | v1 | player | action | logreg | lopo | 124172 | 124172 | 0.967 ± 0.002 | 0.602 ± 0.020 | |

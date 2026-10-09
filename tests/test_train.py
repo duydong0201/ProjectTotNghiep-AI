@@ -257,3 +257,47 @@ def test_conditional_target_without_any_sample_is_a_clear_error(env):
 
     with pytest.raises(ValueError, match="spike_choice.*không có mẫu nào"):
         train_module.run(write_config(targets=["spike_choice"]))
+
+
+# ---------------------------------------------------------------- cửa sổ quanh lúc chạm bóng
+def test_action_window_keeps_frames_around_each_action():
+    df = pd.DataFrame({"match_id": ["m"] * 10, "frame": range(10)})
+    y = pd.DataFrame({"action": ["None"] * 10})
+    y.loc[5, "action"] = "Bump"
+
+    keep = train_module.action_window_mask(df, y, half_width=2)
+
+    assert list(np.flatnonzero(keep)) == [3, 4, 5, 6, 7]
+
+
+def test_action_window_does_not_cross_match_boundary():
+    """Hai trận nối nhau: frame cuối trận này không liên quan tới frame đầu trận sau."""
+    df = pd.DataFrame({"match_id": ["m1"] * 5 + ["m2"] * 5, "frame": list(range(5)) * 2})
+    y = pd.DataFrame({"action": ["None"] * 10})
+    y.loc[4, "action"] = "Set"  # frame cuối của m1
+
+    keep = train_module.action_window_mask(df, y, half_width=3)
+
+    # chỉ lan trong m1, không chạm sang m2 (vị trí 5..9)
+    assert list(np.flatnonzero(keep)) == [1, 2, 3, 4]
+
+
+def test_action_window_keeps_every_action_sample():
+    """Cắt frame None nhưng KHÔNG được mất một mẫu hành động nào."""
+    rng = np.random.default_rng(0)
+    n = 500
+    acts = np.where(rng.random(n) < 0.02, "Bump", "None")
+    df = pd.DataFrame({"match_id": ["m"] * n, "frame": range(n)})
+    y = pd.DataFrame({"action": acts})
+
+    keep = train_module.action_window_mask(df, y, half_width=5)
+
+    assert keep[acts != "None"].all()
+    assert keep.sum() < n  # thực sự có cắt
+
+
+def test_action_window_on_match_without_any_action():
+    df = pd.DataFrame({"match_id": ["m"] * 4, "frame": range(4)})
+    y = pd.DataFrame({"action": ["None"] * 4})
+
+    assert not train_module.action_window_mask(df, y, half_width=2).any()
