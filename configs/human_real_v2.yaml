@@ -1,0 +1,42 @@
+# Train tren 12 TRAN NGUOI CHOI THAT, SCHEMA V2 (27 feature).
+#
+# Day la phep so sanh SACH voi human_real_v1.yaml: CUNG 12 tran, CUNG split (salt khong
+# doi), CUNG seed, CUNG cua so +/-20 frame, CUNG tham so model. Chi khac DUNG MOT thu:
+# 21 feature -> 27 feature. Nen hieu so giua hai run chi co mot nguyen nhan.
+#
+# (Bai hoc tu lan truoc: so sanh v0 -> v1 doi 4 bien cung luc nen khong ket luan duoc gi.)
+#
+# Cot rally_last_touch_kind o day la SUY RA tu log v1 bang rebuild_kind_v1_to_v2(), khong
+# phai do game ghi truc tiep - do chinh xac 100,00% tren 9.346 frame v2 that.
+# Ten thu muc "_kind_derived" mang thong tin do vao cot `source`.
+run_name: human_real_v2
+schema: v2
+data_dirs:
+  - data/raw/v2/human_real_kind_derived
+agent: player
+targets: [move, action]
+
+# Cung cua so nhu cac config khac de so sanh duoc
+frames_around_action: 20
+split:
+  group_by: match
+  # 12 tran -> moi fold 3 tran. Mong, nhung do bang CV con hon mot tap dev don le.
+  dev_mode: kfold
+  n_folds: 4
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  # it mau -> cay nong, la nhieu mau
+  decision_tree:
+    max_depth: 8
+    min_samples_leaf: 10
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_leaf: 5
+    class_weight: balanced

@@ -50,15 +50,25 @@ def make_v1(n=8):
     return df
 
 
+def make_v2(n=8):
+    """v2 = v1 + cot rally_last_touch_kind. Dung lai make_v1 de khoi lech hai noi."""
+    df = make_v1(n)
+    df["schema_version"] = 2
+    # ActionState.Set = 6, va rally_last_touch = 0 (PLAYER) -> player vua Set
+    df["rally_last_touch_kind"] = 6
+    return df
+
+
 # ---------------------------------------------------------------- schema
 def test_detect_version():
     assert detect_version(make_v0().columns[:7]) == "v0"
     assert detect_version(make_v1().columns) == "v1"
+    assert detect_version(make_v2().columns) == "v2"
     with pytest.raises(ValueError):
         detect_version(["a", "b"])
 
 
-@pytest.mark.parametrize("version,maker", [("v0", make_v0), ("v1", make_v1)])
+@pytest.mark.parametrize("version,maker", [("v0", make_v0), ("v1", make_v1), ("v2", make_v2)])
 @pytest.mark.parametrize("agent", ["player", "opponent"])
 def test_feature_order_matches_spec(version, maker, agent):
     X, y = build(maker(), version, agent)
@@ -204,3 +214,60 @@ def test_header_has_no_invalid_cpp_float_literal():
     literals = re.findall(r"[-+]?\d[\d.]*(?:[eE][-+]?\d+)?f\b", header)
     invalid = [t for t in literals if not any(c in t for c in ".eE")]
     assert not invalid, f"literal float không hợp lệ trong C++: {sorted(set(invalid))}"
+
+
+# ---------------------------------------------------------------- v2: chuoi phoi hop
+def test_v2_keeps_every_v1_feature_unchanged():
+    """v2 chi THEM feature. Neu 21 feature cu bi doi gia tri thi moi so do cu mat y nghia."""
+    df = make_v2()
+    X1, _ = build(df.drop(columns=["rally_last_touch_kind"]).assign(schema_version=1), "v1", "player")
+    X2, _ = build(df, "v2", "player")
+    assert list(X2.columns[: len(X1.columns)]) == list(X1.columns)
+    pd.testing.assert_frame_equal(X2[X1.columns], X1)
+
+
+def test_v2_last_touch_kind_follows_the_agent():
+    """rally_last_touch = 0 (PLAYER) + kind = Set:
+    voi agent player day la cu cham CUA MINH, voi agent opponent thi la CUA DOI PHUONG."""
+    df = make_v2()
+    Xp, _ = build(df, "v2", "player")
+    Xo, _ = build(df, "v2", "opponent")
+    assert (Xp["my_last_set"] == 1.0).all()
+    assert (Xo["my_last_set"] == 0.0).all()
+    # khong phai cu dap nen ca hai co opp_last_spike = 0
+    assert (Xp["opp_last_spike"] == 0.0).all()
+    assert (Xo["opp_last_spike"] == 0.0).all()
+
+
+def test_v2_my_last_spike_mirrors_between_agents():
+    """Mot cu dap cua PLAYER phai la my_last_spike cua player VA opp_last_spike cua opponent."""
+    df = make_v2()
+    df["rally_last_touch_kind"] = load_spec("v2")["enums"]["ActionState"]["SpikeMedium"]
+    Xp, _ = build(df, "v2", "player")
+    Xo, _ = build(df, "v2", "opponent")
+    assert (Xp["my_last_spike"] == 1.0).all()
+    assert (Xo["opp_last_spike"] == 1.0).all()
+    assert (Xo["my_last_spike"] == 0.0).all()
+    assert (Xp["opp_last_spike"] == 0.0).all()
+
+
+def test_v2_uses_action_state_enum_not_final_intent():
+    """Hai enum khac nhau: ActionState.Set = 6 nhung FinalIntent.Set = 7.
+    Dung lan bang anh xa thi nhan sai am tham, nen chot lai bang test."""
+    spec = load_spec("v2")
+    assert spec["enums"]["ActionState"]["Set"] == 6
+    assert spec["enums"]["FinalIntent"]["Set"] == 7
+    df = make_v2()
+    df["rally_last_touch_kind"] = 7  # ActionState.SpikeLight, KHONG phai Set
+    X, _ = build(df, "v2", "player")
+    assert (X["my_last_set"] == 0.0).all()
+    assert (X["my_last_spike"] == 1.0).all()
+
+
+def test_v2_self_airborne():
+    df = make_v2()
+    min_y = load_spec("v2")["constants"]["MIN_Y"]
+    df["p_y"] = min_y
+    assert (build(df, "v2", "player")[0]["self_airborne"] == 0.0).all()
+    df["p_y"] = min_y + 100.0
+    assert (build(df, "v2", "player")[0]["self_airborne"] == 1.0).all()
