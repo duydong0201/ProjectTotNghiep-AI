@@ -1,0 +1,43 @@
+# Nhu played_v1.yaml nhung BO class_weight: balanced.
+#
+# Vi sao: do tren 7 tran nguoi choi (14-15/10), model de xuat cu dap o 2145 frame ma
+# 95,9% trong so do bong NGOAI TAM VOI - trung vi khoang cach bot <-> bong la 1806 px,
+# tuc bong dang o nua san ben kia. Chi 4,1% de xuat la kha thi.
+#
+# Gia thuyet: class_weight = balanced nhan trong so lop hiem len theo N/(k*n_c).
+# SpikeLight co 447 mau tren 268.619 frame nen trong so bi day rat cao -> model hang hai
+# de xuat cu dap o ca nhung trang thai ma nhan that la None. macro-F1 dep (thuong cho viec
+# bat duoc lop hiem) ma hanh vi trong game te (khong phat viec de xuat bua).
+#
+# KY VONG: macro-F1 GIAM so voi 0.671. Day KHONG phai that bai - chi so can nhin la
+# "do chinh xac cua de xuat": ty le frame ma argmax ra cu dap VA bong trong tam voi.
+# Hien tai 4,1%. Xem scripts/ do bang veto.py trong scratchpad.
+run_name: played_v1_noweight
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+agent: player
+targets: [move, action]
+
+# Cung cua so nhu moi config khac de so sanh duoc giua cac run.
+# +/-20 frame quanh luc cham bong: giu ~26% frame nhung giu 100% mau hanh dong.
+frames_around_action: 20
+split:
+  group_by: match
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 10
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+  logreg:
