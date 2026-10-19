@@ -21,7 +21,7 @@ self_imitation:
   agent: opponent
   player_id: MLAUTO
   only_won_rallies: true
-  weight: 1.0
+  weight: 0.5               # 2 vong x 50 tran ~ 400k dong x 0,5 ~ 200k, it hon 295k dong nguoi choi
 
 # Moi vong chi fit MOT lan cho nhanh: chia 90/10 theo tran (khong CV). Quyet dinh giu hay bo model
 # dua tren do trong game (bot ML vs bot luat), khong dua tren diem offline.
@@ -44,9 +44,11 @@ selfplay:
   build_dir: build
   vcvars: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat
   auto_logs: F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
-  iterations: 3
-  matches_per_iteration: 20   # tran tu choi moi vong (du lieu train)
+  iterations: 10
+  matches_per_iteration: 50   # tran tu choi moi vong (du lieu train)
   max_frames: 54000           # ~15 phut moi tran; chan pha bong vo tan giua hai bot
-  eval_matches: 20            # tran do moi model, CUNG bo seed cho moi model
+  eval_matches: 50            # tran do moi model, CUNG bo seed cho moi model (~1.150 diem)
   eval_seed: 100000
   min_gain: 0.0               # giu model moi khi % diem thang cao hon model dang giu
+  keep_last_iterations: 2     # chi train tren log tu choi cua 2 vong gan nhat (khong lan at du lieu nguoi)
+  stop_after_rejections: 3    # 3 vong lien khong giu duoc model nao thi dung

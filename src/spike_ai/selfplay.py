@@ -94,10 +94,26 @@ def install_header(header: Path, sp: dict) -> None:
 
 
 # ------------------------------------------------------------------ train và đo
+def recent_selfplay_dirs(auto_logs: Path, keep: int) -> list[Path]:
+    """`keep` thư mục vòng tự chơi gần nhất (tên có thời gian chạy + số vòng nên sắp theo tên là đúng thứ tự)."""
+    folders = sorted(p for p in auto_logs.iterdir() if p.is_dir()) if auto_logs.exists() else []
+    return folders[-keep:] if keep > 0 else folders
+
+
 def train_config(cfg: dict, run_dir: Path, iteration: int) -> Path:
-    """Config train của vòng này = config gốc bỏ mục `selfplay`, đặt run_name theo vòng."""
+    """Config train của vòng này = config gốc bỏ mục `selfplay`, đặt run_name theo vòng.
+
+    `selfplay.keep_last_iterations` = K > 0: chỉ dùng log tự chơi của K vòng gần nhất thay cho cả
+    thư mục Logs/auto, để dữ liệu tự học không lấn át dữ liệu người chơi khi chạy nhiều vòng.
+    """
     train_cfg = {k: v for k, v in cfg.items() if k not in TRAIN_KEYS_DROP}
     train_cfg["run_name"] = f"{cfg['run_name']}_iter{iteration:02d}"
+    sp = cfg.get("selfplay", {})
+    keep = int(sp.get("keep_last_iterations", 0))
+    if keep and sp.get("auto_logs"):
+        auto = Path(sp["auto_logs"]).resolve()
+        others = [d for d in train_cfg["data_dirs"] if Path(d).resolve() != auto]
+        train_cfg["data_dirs"] = others + [str(p) for p in recent_selfplay_dirs(auto, keep)]
     path = run_dir / f"train_iter{iteration:02d}.yaml"
     path.write_text(yaml.safe_dump(train_cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return path
@@ -157,10 +173,15 @@ def run(config_path: str, iterations: int | None = None) -> dict:
     print(f"   bot ML thắng {best['pct_diem_thang']:.1f}% điểm")
     history = [{"iteration": 0, "model": "xuat phat", "eval": best, "kept": True}]
 
+    # Seed tự chơi khác nhau giữa CÁC LẦN chạy (cùng model + cùng seed = đúng các trận cũ).
+    # Seed đo (eval_seed) thì giữ cố định để mọi model đấu cùng một bộ trận.
+    seed_base = int(datetime.now().strftime("%y%m%d%H%M")) % 100_000_000 * 100
+    stop_after = int(sp.get("stop_after_rejections", 0))
+    rejected_in_a_row = 0
     for it in range(1, n_iter + 1):
         print(f"\n== Vòng {it}/{n_iter}")
         iter_logs = auto_logs / f"iter_{stamp}_{it:02d}"
-        total = run_matches(sp, iter_logs, sp["matches_per_iteration"], 1000 * it, f"it{it:02d}")
+        total = run_matches(sp, iter_logs, sp["matches_per_iteration"], seed_base + it, f"it{it:02d}")
         compress_logs(iter_logs)
         print(f"   tự chơi: {total}")
         cfg_path = train_config(cfg, run_dir, it)
@@ -181,6 +202,10 @@ def run(config_path: str, iterations: int | None = None) -> dict:
             build_runner(sp)
         history.append({"iteration": it, "model": str(model), "self_play": total, "eval": cand, "kept": kept})
         (run_dir / "history.json").write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+        rejected_in_a_row = 0 if kept else rejected_in_a_row + 1
+        if stop_after and rejected_in_a_row >= stop_after:
+            print(f"   {rejected_in_a_row} vòng liền không giữ được model nào -> dừng")
+            break
 
     _log(cfg["run_name"], run_dir.name, history)
     print(f"\nXong. Model tốt nhất: {best_dir}. Lịch sử: {run_dir / 'history.json'}")

@@ -127,3 +127,26 @@ def test_eval_logs_are_deleted_after_scoring(tmp_path, monkeypatch):
     monkeypatch.setattr(selfplay.eval_ingame, "evaluate", lambda paths: {"sides": {"phải": fake_side}})
     assert selfplay.score_ml({}, eval_dir)["pct_diem_thang"] == 50.0
     assert not eval_dir.exists()
+
+
+def test_train_config_uses_only_the_last_selfplay_iterations(tmp_path):
+    auto = tmp_path / "auto"
+    for name in ("iter_A_01", "iter_A_02", "iter_B_01"):
+        (auto / name).mkdir(parents=True)
+    cfg = {
+        "run_name": "sp",
+        "data_dirs": [str(tmp_path / "v1"), str(auto)],
+        "selfplay": {"auto_logs": str(auto), "keep_last_iterations": 2},
+    }
+    written = yaml.safe_load(selfplay.train_config(cfg, tmp_path, 1).read_text(encoding="utf-8"))
+    assert [Path(d).name for d in written["data_dirs"]] == ["v1", "iter_A_02", "iter_B_01"]
+
+
+def test_stops_after_consecutive_rejections(fake_game, monkeypatch):
+    game, cfg = fake_game
+    data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    data["selfplay"]["stop_after_rejections"] = 2
+    cfg.write_text(yaml.safe_dump(data), encoding="utf-8")
+    _scores(monkeypatch, [40.0, 39.0, 38.0, 99.0])  # 2 vong bi bo -> dung, khong chay vong 3
+    out = selfplay.run(str(cfg), iterations=5)
+    assert [h["iteration"] for h in out["history"]] == [0, 1, 2]
