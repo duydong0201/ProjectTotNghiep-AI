@@ -542,3 +542,52 @@ def test_label_shift_one_is_silent(capsys):
 
 def test_v0_does_not_need_label_shift():
     assert train_module.check_label_shift({}, "v0") == 0
+
+
+# ------------------------------------------------- tu hoc (self_imitation, ADR-014)
+def _selfplay_log(match_id="auto0", o_pid="MLAUTO"):
+    """24 frame, 2 pha bong: pha 1 (frame 0-7) bot ML (san phai) thang, pha 2 (12-19) bot luat thang."""
+    df = _dagger_log(n=24, match_id=match_id, p_ctrl=RULE_BOT, o_ctrl=ML_BOT)
+    df["o_player_id"] = o_pid
+    df["ball_state_frame"] = 50
+    df.loc[0:7, "ball_state_frame"] = -1
+    df.loc[12:19, "ball_state_frame"] = -1
+    df.loc[9:, "score_right"] = 1
+    df.loc[21:, "score_left"] = 1
+    return df
+
+
+def test_won_rally_mask_marks_only_rallies_the_team_won():
+    df = _selfplay_log()
+    right = train_module.won_rally_mask(df, team=1)
+    left = train_module.won_rally_mask(df, team=0)
+    assert np.flatnonzero(right).tolist() == list(range(0, 8))
+    assert np.flatnonzero(left).tolist() == list(range(12, 20))
+
+
+def test_self_imitation_keeps_ml_frames_of_won_rallies_from_selfplay_matches_only():
+    df = pd.concat([_selfplay_log("auto0"), _selfplay_log("nguoi_vs_bot", o_pid="BOT")], ignore_index=True)
+    cfg = {"self_imitation": {"agent": "opponent", "player_id": "MLAUTO"}}
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], cfg)
+    assert set(rows["_agent"]) == {"opponent"}  # san trai la bot luat -> bo
+    assert set(rows["match_id"]) == {"auto0"}  # tran nguoi vs bot cu khong bi lan vao
+    assert sorted(rows["frame"]) == list(range(0, 8))  # chi pha bot ML thang
+
+
+def test_self_imitation_weight_is_separate_from_agent_weight():
+    df = _selfplay_log()
+    df.loc[22:23, "o_controller"] = HUMAN  # vai frame nguoi gianh quyen (DAgger)
+    cfg = {
+        "agent_weight": {"opponent": 20},
+        "self_imitation": {"agent": "opponent", "player_id": "MLAUTO", "weight": 0.5},
+    }
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], cfg)
+    w = dict(zip(rows["frame"], rows["_weight"], strict=True))
+    assert w[0] == 0.5 and w[22] == 20.0
+
+
+def test_self_imitation_agent_must_be_trained():
+    with pytest.raises(ValueError, match="self_imitation.agent"):
+        train_module.build_rows(
+            _selfplay_log(), "v1", "player", {"self_imitation": {"agent": "opponent", "player_id": "X"}}
+        )

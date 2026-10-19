@@ -45,3 +45,4 @@ Không cần ADR cho chi tiết nhỏ như tên biến hay một hyperparameter.
 | [011](adr-011-label-leakage-from-logging-order.md) | Rò rỉ nhãn do thứ tự ghi log - ghép nhãn lùi một frame | Accepted |
 | [012](adr-012-hybrid-model-decides-physics-times-jump.md) | Model quyết định đánh gì, vật lý quyết định lúc nhảy | Proposed - chờ đo trong game |
 | [013](adr-013-evaluate-with-game-policy.md) | Đo model bằng đúng cách bot ra quyết định trong game, trên mọi frame | Accepted |
+| [014](adr-014-self-imitation-selfplay.md) | Vòng tự học tự động: bot ML học từ những pha chính nó thắng | Accepted |

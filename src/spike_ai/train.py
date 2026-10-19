@@ -148,6 +148,31 @@ def action_window_mask(df: pd.DataFrame, y: pd.DataFrame, half_width: int) -> np
 
 
 CONTROLLER_PREFIX = {"player": "p_", "opponent": "o_"}
+AGENT_TEAM = {"player": 0, "opponent": 1}  # Team::LEFT / RIGHT
+BALL_ALIVE = -1
+# Sau khi bong chet, diem duoc cong trong vong ngan nay frame (dem nguoc 50 -> 0 roi reset).
+SCORE_LOOKAHEAD = 200
+
+
+def won_rally_mask(df: pd.DataFrame, team: int) -> np.ndarray:
+    """Frame nao thuoc mot pha bong (doan bong dang song) ma doi `team` THANG diem.
+
+    Dung cho tu hoc (self_imitation): chi bat chuoc nhung pha bong bot ML ghi duoc diem.
+    Nguoi thang = ben duoc cong diem ngay sau khi bong chet. Tinh rieng tung tran.
+    """
+    out = np.zeros(len(df), dtype=bool)
+    mine_col, other_col = ("score_left", "score_right") if team == 0 else ("score_right", "score_left")
+    for positions in df.groupby("match_id", sort=False).indices.values():
+        alive = (df["ball_state_frame"].to_numpy()[positions] == BALL_ALIVE).astype(int)
+        mine = df[mine_col].to_numpy()[positions]
+        other = df[other_col].to_numpy()[positions]
+        edges = np.flatnonzero(np.diff(np.r_[0, alive, 0]))
+        for start, end in zip(edges[::2], edges[1::2], strict=True):
+            after = slice(end - 1, min(end - 1 + SCORE_LOOKAHEAD, len(positions)))
+            gained = np.flatnonzero((mine[after] > mine[end - 1]) | (other[after] > other[end - 1]))
+            if len(gained) and mine[after][gained[0]] > mine[end - 1]:
+                out[positions[start:end]] = True
+    return out
 
 
 def as_agent_list(agent) -> list[str]:
@@ -181,7 +206,11 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
     by_match = df["match_id"].to_numpy()
     has_next = (df.groupby(by_match, sort=False).cumcount(ascending=False) >= shift).to_numpy() if shift else None
     window = cfg.get("frames_around_action")
-    human_code = load_spec(version).get("enums", {}).get("Controller", {}).get("human", 0)
+    controllers = load_spec(version).get("enums", {}).get("Controller", {})
+    human_code, ml_code = controllers.get("human", 0), controllers.get("ml_bot", 2)
+    si = cfg.get("self_imitation")
+    if si and si.get("agent") not in agents:
+        raise ValueError(f"self_imitation.agent = {si.get('agent')} phai nam trong agent = {agents}")
 
     parts_df, parts_X, parts_y = [], [], []
     for agent in agents:
@@ -209,10 +238,22 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
             keep &= has_next
             notes.append(f"ghep nhan lui {shift} frame")
 
+        self_rows = np.zeros(len(df), dtype=bool)
         if only_human and controller is not None:
             human = (controller == human_code).to_numpy()
             notes.append(f"nguoi dieu khien {human.sum():,}")
-            keep &= human
+            allowed = human
+            if si and agent == si["agent"]:
+                # TU HOC (self-imitation): them frame cua CHINH bot ML trong cac tran tu sinh
+                # (player_id = si.player_id, vd MLAUTO do MatchRunner ghi), chi o nhung pha bong
+                # phia no thang diem. Log nguoi vs bot cu co player_id khac nen khong bi lan vao.
+                pid = df[f"{CONTROLLER_PREFIX[agent]}player_id"].astype(str).to_numpy() == str(si["player_id"])
+                self_rows = pid & (controller == ml_code).to_numpy()
+                if si.get("only_won_rallies", True):
+                    self_rows &= won_rally_mask(df, AGENT_TEAM[agent])
+                notes.append(f"tu hoc {self_rows.sum():,}")
+                allowed = human | self_rows
+            keep &= allowed
 
         if window:
             in_window = action_window_mask(df, y, int(window))
@@ -220,7 +261,12 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
             keep &= in_window
 
         print(f"  agent={agent}: giu {keep.sum():,}/{len(df):,} frame ({', '.join(notes) or 'khong loc'})")
-        parts_df.append(df[keep].assign(_agent=agent, _weight=float(weights.get(agent, 1.0))))
+        weight = np.full(len(df), float(weights.get(agent, 1.0)))
+        if si and agent == si["agent"]:
+            # Trong so RIENG cho dong tu hoc, khong nhan voi agent_weight (agent_weight cua san phai
+            # danh cho frame nguoi gianh quyen DAgger, vd x20).
+            weight[self_rows] = float(si.get("weight", 1.0))
+        parts_df.append(df[keep].assign(_agent=agent, _weight=weight[keep]))
         parts_X.append(X[keep])
         part_y = y[keep].copy()
         # groupby().shift() doi move sang so thuc (1.0) vi co NaN o cuoi tran; cac dong giu lai
@@ -238,6 +284,11 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
             "Kiem cot controller trong log, hoac dat only_human: false neu co y train tren bot."
         )
     return out_df, out_X, out_y
+
+
+def uses_weights(cfg: dict) -> bool:
+    """Config co dat trong so tung dong khong (agent_weight hoac self_imitation.weight)."""
+    return bool(cfg.get("agent_weight") or (cfg.get("self_imitation") or {}).get("weight"))
 
 
 def _fit(name, seed, params, X, y, w):
@@ -276,7 +327,7 @@ def run(config_path: str, final: bool = False) -> dict:
         print(f"  exclude_matches: bo {n_drop}/{len(excluded)} tran ({int(drop.sum()):,} frame)")
         df = df[~drop].reset_index(drop=True)
     df, X, y = build_rows(df, version, agent, cfg)
-    W = df["_weight"].to_numpy() if cfg.get("agent_weight") else None
+    W = df["_weight"].to_numpy() if uses_weights(cfg) else None
     if W is not None:
         for a in as_agent_list(agent):
             m = (df["_agent"] == a).to_numpy()

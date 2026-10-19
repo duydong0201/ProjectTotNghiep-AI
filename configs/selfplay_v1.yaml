@@ -1,0 +1,52 @@
+# VONG TU HOC TU DONG (ADR-014): python -m spike_ai.selfplay --config configs/selfplay_v1.yaml
+#
+# Xuat phat tu model dang chay trong game (dagger_v1_w_aligned): cung cach train, chi them
+#   - du lieu bot tu choi o Logs/auto (MatchRunner ghi, o_player_id = MLAUTO);
+#   - self_imitation: phia bot ML hoc tu chinh no, CHI o nhung pha bong no thang diem.
+# Du lieu nguoi choi (Logs/v1) van giu nguyen trong tap train.
+run_name: selfplay_v1
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+agent: [player, opponent]
+targets: [action]
+frames_around_action: 20
+label_shift: 1
+
+# Frame nguoi gianh quyen (DAgger) x20 nhu dagger_v1_w_aligned.
+agent_weight:
+  opponent: 20
+self_imitation:
+  agent: opponent
+  player_id: MLAUTO
+  only_won_rallies: true
+  weight: 1.0
+
+# Moi vong chi fit MOT lan cho nhanh: chia 90/10 theo tran (khong CV). Quyet dinh giu hay bo model
+# dua tren do trong game (bot ML vs bot luat), khong dua tren diem offline.
+split:
+  group_by: match
+  dev_mode: single
+  dev_ratio: 0.1
+  holdout_ratio: 0
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+
+selfplay:
+  game_dir: F:/DoAnTotNghiep/ProjectTotNghiep
+  runner: build/RelWithDebInfo/MatchRunner.exe
+  build_dir: build
+  vcvars: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat
+  auto_logs: F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+  iterations: 3
+  matches_per_iteration: 20   # tran tu choi moi vong (du lieu train)
+  max_frames: 54000           # ~15 phut moi tran; chan pha bong vo tan giua hai bot
+  eval_matches: 20            # tran do moi model, CUNG bo seed cho moi model
+  eval_seed: 100000
+  min_gain: 0.0               # giu model moi khi % diem thang cao hon model dang giu
