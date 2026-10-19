@@ -56,4 +56,6 @@ trên các tập đó cần đọc với lưu ý này.
 ## Hệ quả
 
 - Con số báo cáo cho "bot trong game" từ nay lấy từ `eval_policy`, kèm số trận thật.
-- Việc tiếp theo, cần người dùng quyết: tách dữ liệu sinh tự động khỏi dữ liệu chơi thật khi train.
+- **Quyết định của người dùng (19/10/2026): KHÔNG tách** - tiếp tục train trên toàn bộ `Logs/v1`, gồm
+  cả dữ liệu sinh tự động. Khi báo cáo, ghi rõ tập train gồm 30 trận chơi thật + 298 trận sinh tự động, và
+  nêu con số `eval_policy` trên riêng 30 trận thật bên cạnh con số trên toàn bộ.
