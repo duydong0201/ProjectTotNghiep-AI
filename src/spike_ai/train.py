@@ -98,6 +98,29 @@ def validate_split_config(cfg: dict) -> dict:
     return s
 
 
+def check_label_shift(cfg: dict, version: str) -> int:
+    """Config log v1/v2 BẮT BUỘC khai báo `label_shift` (ADR-011).
+
+    Game ghi log SAU khi đã áp hành động, nên ghép nhãn cùng frame (label_shift: 0) cho model nhìn
+    thấy đáp án ngay trong feature: điểm offline cao ảo, bot trong game kém. Trước đây giá trị mặc
+    định là 0, nên chạy lại một config cũ là ra model rò rỉ mà không ai biết. Giờ phải ghi rõ:
+        label_shift: 1   cách đúng
+        label_shift: 0   chỉ để tái lập kết quả cũ - in cảnh báo
+    Log v0 ghi theo cách khác (log debug của MainScene) nên không áp dụng.
+    """
+    if version == "v0":
+        return int(cfg.get("label_shift", 0))
+    if "label_shift" not in cfg:
+        raise ValueError(
+            f"Config schema {version} phải khai báo label_shift (ADR-011). "
+            "Dùng 'label_shift: 1'; 'label_shift: 0' chỉ để tái lập kết quả cũ (model rò rỉ nhãn)."
+        )
+    shift = int(cfg["label_shift"])
+    if shift == 0:
+        print("  ! label_shift: 0 -> model RÒ RỈ NHÃN (ADR-011): điểm offline cao ảo. Chỉ dùng để tái lập kết quả cũ.")
+    return shift
+
+
 def action_window_mask(df: pd.DataFrame, y: pd.DataFrame, half_width: int) -> np.ndarray:
     """Mặt nạ giữ các frame trong cửa sổ +/- half_width quanh mỗi frame CÓ hành động.
 
@@ -241,6 +264,7 @@ def run(config_path: str, final: bool = False) -> dict:
     version, agent, seed = cfg["schema"], cfg["agent"], cfg.get("seed", 42)
     s = validate_split_config(cfg)
     spec = load_spec(version)
+    check_label_shift(cfg, version)
 
     df = load_data(cfg["data_dirs"], version, cfg.get("game_versions"))
     # Loc nguoi dieu khien + cua so quanh luc cham bong, cho tung agent roi gop lai.

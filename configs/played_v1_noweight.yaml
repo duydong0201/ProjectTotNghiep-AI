@@ -41,3 +41,8 @@ models:
     max_depth: 14
     min_samples_leaf: 10
   logreg:
+
+# Ghep nhan CUNG frame = RO RI NHAN (ADR-011): model nhin thay dap an, diem offline cao ao.
+# Giu 0 chi de chay lai ra dung ket qua cu da ghi trong reports/experiments.md.
+# Train model moi thi dung label_shift: 1 (xem played_v1_aligned.yaml).
+label_shift: 0
