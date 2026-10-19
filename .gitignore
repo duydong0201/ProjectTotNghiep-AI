@@ -5,6 +5,8 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+# thư mục tạm của pytest (--basetemp), không phải nguồn
+scratch/
 .ipynb_checkpoints/
 
 # Dữ liệu và model: KHÔNG commit (dùng Google Drive / Git LFS / GitHub Releases)

@@ -39,3 +39,8 @@ Không cần ADR cho chi tiết nhỏ như tên biến hay một hyperparameter.
 | [005](adr-005-rebuild-v0-frames.md) | Dựng lại frame cho log v0 trước khi tính feature | Accepted |
 | [006](adr-006-conditional-spike-choice-target.md) | Tách việc chọn cú đập thành nhãn có điều kiện `spike_choice` | Accepted |
 | [007](adr-007-no-temporal-features-for-spike-choice.md) | Không dùng feature vận tốc cho `spike_choice` trên schema v0 | Accepted |
+| [008](adr-008-synthetic-data-for-pipeline-validation.md) | Dữ liệu tổng hợp để kiểm chứng pipeline và dựng learning curve | Accepted |
+| [009](adr-009-derive-touch-kind-for-v1-logs.md) | Suy ra cột `rally_last_touch_kind` cho log v1 | Accepted |
+| [010](adr-010-sequence-features-do-not-help-offline.md) | Feature chuỗi phối hợp (schema v2) không giúp offline | Accepted - cần đo lại sau ADR-011 |
+| [011](adr-011-label-leakage-from-logging-order.md) | Rò rỉ nhãn do thứ tự ghi log - ghép nhãn lùi một frame | Accepted |
+| [012](adr-012-hybrid-model-decides-physics-times-jump.md) | Model quyết định đánh gì, vật lý quyết định lúc nhảy | Proposed - chờ đo trong game |

@@ -50,6 +50,24 @@ khỏi phải chữa cháy như vậy nữa.
 9. `match_id` phải **duy nhất trên mọi máy**, ví dụ `<yyyy-mm-dd_hh-mm-ss>_<player_id>`. Phía AI dùng nó để
    chia tập và để kiểm tra holdout không trùng trận với dữ liệu train.
 
+### Trạng thái triển khai (06/10/2026)
+
+`DatasetLogger` đã có bên game: `Source/System/DatasetLogger.{h,cpp}`, cấu hình ở
+`Source/Config/Match/DatasetLogConfig.h`.
+
+| Mục | Thực tế |
+|---|---|
+| Nơi ghi | `Logs/v1/<yyyy-mm-dd_hh-mm-ss>_<player_id>.csv`, thư mục con riêng để không lẫn log debug cũ |
+| Thời điểm ghi | Sau `GenerateIntent::update`, trước `ApplyIntentToComponent` — đúng quy tắc 2 |
+| Một dòng mỗi frame | Có. Kiểm chứng trên 6.780 frame: **0 frame trùng lặp, 0 lỗ hổng** |
+| `game_version` | Commit ngắn của repo game, nhúng lúc build qua `target_compile_definitions` |
+| `player_id` | `DatasetLogConfig::PLAYER_ID`, **phải đổi trước mỗi buổi thu với người mới** |
+| Bật/tắt | `DatasetLogConfig::ENABLE` |
+| `dt_ms` | ⚠️ Vẫn là `delta` thật (~17–19 ms), **chưa** dùng fixed timestep. Quy tắc 6 chưa làm |
+
+Phía AI đã kiểm chứng: `detect_version` nhận ra `v1`, `validate_columns` pass, và
+`features.build` tính ra đủ **21 feature** cho cả hai agent, không có NaN.
+
 ## 3. Các cột (tóm tắt)
 
 | Nhóm | Cột |

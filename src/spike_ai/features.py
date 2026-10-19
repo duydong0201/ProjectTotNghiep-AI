@@ -43,7 +43,7 @@ def build(df: pd.DataFrame, version: str, agent: str) -> tuple[pd.DataFrame, pd.
     if agent not in AGENT_SIDE:
         raise ValueError(f"agent phải là {list(AGENT_SIDE)}, nhận: {agent}")
     spec = load_spec(version)
-    builder = {"v0": _build_v0, "v1": _build_v1}[version]
+    builder = {"v0": _build_v0, "v1": _build_v1, "v2": _build_v2}[version]
     X, y = builder(df, agent, spec)
     y["spike_choice"] = y["action"].where(y["action"].isin(SPIKE_CHOICES))
 
@@ -151,4 +151,55 @@ def _build_v1(df: pd.DataFrame, agent: str, spec: dict):
             "action": df[f"{me}input_intent"].map(intent_names).fillna("None"),
         }
     )
+    return X, y
+
+
+# ---------------------------------------------------------------------------
+# v2: v1 + cot rally_last_touch_kind -> 6 feature ve CHUOI PHOI HOP
+# ---------------------------------------------------------------------------
+# Vi sao can: do ngay 12/10/2026, chuoi Set -> Jump -> Spike xuat hien 0 lan trong game.
+# Nguyen nhan KHONG phai tich hop ma la feature: model la stateless (moi frame chi thay
+# 21 so cua frame do) nen khong co cach nao biet "minh vua Set xong". v1 chi co
+# last_touch_me (AI cham) va touch_count (may lan), khong co LOAI cu.
+#
+# Trong du lieu nguoi choi (12 tran that + 120 tran) cac chuoi nay co that:
+#   Jump -> Spike : 102/155 lan (that) va 559/571 lan (120 tran)
+#   Set  -> Jump  :  12 lan (that),  61 lan (120 tran)
+#   Bump -> Jump  :   0 lan (that),  79 lan (120 tran)
+#   Jump -> Serve :  31 lan (that) - giao bong bat nhay
+#
+# LUU Y khi doc ket qua: 6 feature nay giup model biet DANG O DAU trong chuoi, nhung
+# KHONG tu lam model de xuat `Set` nhieu hon. Do duoc: model gan cho Set xac suat trung
+# binh chi 0.025 (Jump la 0.109). Neu sau khi train lai ma `Set` van hiem thi van de nam
+# o phan bo trang thai, khong o feature - phai thu them du lieu o dung vung trang thai do.
+SPIKE_ACTION_STATES = ("Spike", "SpikeLight", "SpikeMedium", "SpikeStrong")
+
+
+def _build_v2(df: pd.DataFrame, agent: str, spec: dict):
+    X, y = _build_v1(df, agent, spec)
+
+    c = spec["constants"]
+    my_entity = c["PLAYER_ENTITY"] if agent == "player" else c["OPPONENT_ENTITY"]
+    opp_entity = c["OPPONENT_ENTITY"] if agent == "player" else c["PLAYER_ENTITY"]
+    me = "p_" if agent == "player" else "o_"
+
+    # Enum ActionState, KHAC enum FinalIntent dung o cot p_input_intent/o_input_intent.
+    action_state = spec["enums"]["ActionState"]
+    kind = df["rally_last_touch_kind"].astype(float)
+    mine = df["rally_last_touch"] == my_entity
+    theirs = df["rally_last_touch"] == opp_entity
+
+    def is_kind(*names):
+        codes = [action_state[n] for n in names]
+        return kind.isin(codes)
+
+    spikes = is_kind(*SPIKE_ACTION_STATES)
+
+    X["my_last_set"] = (mine & is_kind("Set")).astype(float)
+    X["my_last_bump"] = (mine & is_kind("Bump")).astype(float)
+    X["my_last_spike"] = (mine & spikes).astype(float)
+    X["my_last_serve"] = (mine & is_kind("Serve")).astype(float)
+    X["opp_last_spike"] = (theirs & spikes).astype(float)
+    X["self_airborne"] = (df[f"{me}y"].astype(float) > c["MIN_Y"]).astype(float)
+
     return X, y

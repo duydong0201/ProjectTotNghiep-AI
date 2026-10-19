@@ -1,0 +1,64 @@
+# Train tren 12 TRAN NGUOI CHOI THAT (data/raw/v1/human_real).
+#
+# Vi sao dung bo nay thay cho bo 120 tran (configs/human_v1.yaml):
+#
+# Do cheo ngay 10/10/2026 - cung mot model Random Forest train tren 120 tran:
+#
+#   do tren                              macro-F1 action
+#   holdout P04 (cung nguon voi train)        0.994
+#   12 tran choi that (nguon khac)            0.157   <- majority la 0.142
+#
+# Tren tran that model KHONG nhan ra gi: Jump/Serve/SpikeLight/SpikeMedium/SpikeStrong
+# deu F1 = 0.000. Nguyen nhan la lech phan bo: 33,4% frame cua tran that co it nhat mot
+# feature NGOAI vung gia tri cua tap 120 tran, va tai frame co hanh dong thi
+# touch_count la 1.93 (tap 120) so voi 0.95 (tran that).
+#
+# So 3 cach train, deu do bang macro-F1 TREN TRAN THAT giu lai (GroupKFold 4 fold):
+#   chi 120 tran moi          0.144 +/- 0.017   (~bang majority 0.129)
+#   chi 12 tran that          0.328 +/- 0.024   <- cao nhat, dung bo nay
+#   120 tran moi + tran that  0.296 +/- 0.023
+#
+# Them 120 tran moi lam GIAM diem. Xem reports/experiments.md dong abtest_realtarget.
+#
+# Ly do thu hai, ve hanh vi trong game: bo nay co nhieu mau cho chuoi phoi hop hon
+# bo 6 tran dang duoc export (models/play_p01_v1_20261009-155852):
+#
+#            6 tran (dang dung)   12 tran (bo nay)
+#   Set              104                174
+#   Jump              87                155
+#   Jump -> Serve      ?                 31   <- giao bong bat nhay
+#   Jump -> Spike      ?                102
+#
+# Luat masking 4 trong AIInputSystem chi cho Jump sau mot cu Set, nen so mau Set/Jump
+# quyet dinh truc tiep tan suat chuoi Set -> Jump -> Spike xuat hien trong game.
+run_name: human_real_v1
+schema: v1
+data_dirs:
+  - data/raw/v1/human_real
+agent: player
+targets: [move, action]
+
+# Cung cua so nhu cac config khac de so sanh duoc
+frames_around_action: 20
+split:
+  group_by: match
+  # 12 tran -> moi fold 3 tran. Mong, nhung do bang CV con hon mot tap dev don le.
+  dev_mode: kfold
+  n_folds: 4
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  # it mau -> cay nong, la nhieu mau
+  decision_tree:
+    max_depth: 8
+    min_samples_leaf: 10
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_leaf: 5
+    class_weight: balanced

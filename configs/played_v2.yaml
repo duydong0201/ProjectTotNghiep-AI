@@ -1,0 +1,43 @@
+# Train CHI tren du lieu NGUOI CHOI, doc TRUC TIEP tu ProjectTotNghiep/Logs/v1.
+#
+# Khong sao chep sang data/raw, khong tao thu muc moi: config tro thang vao thu muc goc
+# de khong bao gio co chuyen "train nham nguon du lieu".
+#
+# Da kiem 14/10/2026 tren ca 312 file:
+#   p_controller = 0 (nguoi choi) o 312/312 file
+#   p_player_id  : P01 92 tran, P02 80, P03 80, P04 60
+#
+# 4 nguoi choi -> do duoc ca kfold (chia theo tran) va lopo (train 3 nguoi, test nguoi
+# thu 4 chua tung thay). Xem configs/played_v1_lopo.yaml.
+run_name: played_v2
+schema: v2
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+agent: player
+targets: [move, action]
+
+# Cung cua so nhu moi config khac de so sanh duoc giua cac run.
+# +/-20 frame quanh luc cham bong: giu ~26% frame nhung giu 100% mau hanh dong.
+frames_around_action: 20
+split:
+  group_by: match
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 10
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+    class_weight: balanced
+  logreg:
+    class_weight: balanced

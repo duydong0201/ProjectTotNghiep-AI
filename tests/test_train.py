@@ -257,3 +257,262 @@ def test_conditional_target_without_any_sample_is_a_clear_error(env):
 
     with pytest.raises(ValueError, match="spike_choice.*không có mẫu nào"):
         train_module.run(write_config(targets=["spike_choice"]))
+
+
+# ---------------------------------------------------------------- cửa sổ quanh lúc chạm bóng
+def test_action_window_keeps_frames_around_each_action():
+    df = pd.DataFrame({"match_id": ["m"] * 10, "frame": range(10)})
+    y = pd.DataFrame({"action": ["None"] * 10})
+    y.loc[5, "action"] = "Bump"
+
+    keep = train_module.action_window_mask(df, y, half_width=2)
+
+    assert list(np.flatnonzero(keep)) == [3, 4, 5, 6, 7]
+
+
+def test_action_window_does_not_cross_match_boundary():
+    """Hai trận nối nhau: frame cuối trận này không liên quan tới frame đầu trận sau."""
+    df = pd.DataFrame({"match_id": ["m1"] * 5 + ["m2"] * 5, "frame": list(range(5)) * 2})
+    y = pd.DataFrame({"action": ["None"] * 10})
+    y.loc[4, "action"] = "Set"  # frame cuối của m1
+
+    keep = train_module.action_window_mask(df, y, half_width=3)
+
+    # chỉ lan trong m1, không chạm sang m2 (vị trí 5..9)
+    assert list(np.flatnonzero(keep)) == [1, 2, 3, 4]
+
+
+def test_action_window_keeps_every_action_sample():
+    """Cắt frame None nhưng KHÔNG được mất một mẫu hành động nào."""
+    rng = np.random.default_rng(0)
+    n = 500
+    acts = np.where(rng.random(n) < 0.02, "Bump", "None")
+    df = pd.DataFrame({"match_id": ["m"] * n, "frame": range(n)})
+    y = pd.DataFrame({"action": acts})
+
+    keep = train_module.action_window_mask(df, y, half_width=5)
+
+    assert keep[acts != "None"].all()
+    assert keep.sum() < n  # thực sự có cắt
+
+
+def test_action_window_on_match_without_any_action():
+    df = pd.DataFrame({"match_id": ["m"] * 4, "frame": range(4)})
+    y = pd.DataFrame({"action": ["None"] * 4})
+
+    assert not train_module.action_window_mask(df, y, half_width=2).any()
+
+
+# ------------------------------------------------- chi train tren frame nguoi dieu khien (DAgger)
+HUMAN, RULE_BOT, ML_BOT = 0, 1, 2
+
+
+def _dagger_log(n=12, match_id="m0", p_ctrl=HUMAN, o_ctrl=ML_BOT):
+    """Log v1 toi thieu. p_ctrl / o_ctrl la so hoac danh sach theo tung frame."""
+    df = pd.DataFrame({c: np.zeros(n) for c in raw_column_names(load_spec("v1"))})
+    df["schema_version"] = 1
+    df["match_id"] = match_id
+    df["frame"] = np.arange(n)
+    df["p_controller"] = p_ctrl
+    df["o_controller"] = o_ctrl
+    df["p_player_id"] = "P01"
+    df["o_player_id"] = "BOT"
+    return df
+
+
+def test_only_human_drops_frames_played_by_the_rule_bot():
+    """Tran DAgger: san trai la BOT LUAT. Train agent=player thi phai bo het."""
+    df = pd.concat(
+        [_dagger_log(match_id="nguoi", p_ctrl=HUMAN), _dagger_log(match_id="dagger", p_ctrl=RULE_BOT)],
+        ignore_index=True,
+    )
+    rows, X, y = train_module.build_rows(df, "v1", "player", {})
+    assert set(rows["match_id"]) == {"nguoi"}
+    assert len(rows) == len(X) == len(y) == 12
+
+
+def test_only_human_can_be_turned_off_on_purpose():
+    df = _dagger_log(p_ctrl=RULE_BOT)
+    rows, _, _ = train_module.build_rows(df, "v1", "player", {"only_human": False})
+    assert len(rows) == 12
+
+
+def test_dagger_keeps_only_the_frames_where_the_human_took_over():
+    """San phai: bot ML lai, NGUOI chi gianh quyen o frame 4-7. Chi 4 frame do la nhan DAgger."""
+    o_ctrl = [ML_BOT] * 4 + [HUMAN] * 4 + [ML_BOT] * 4
+    df = _dagger_log(p_ctrl=RULE_BOT, o_ctrl=o_ctrl)
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], {})
+    assert list(rows["_agent"]) == ["opponent"] * 4
+    assert list(rows["frame"]) == [4, 5, 6, 7]
+
+
+def test_dagger_merges_human_play_with_takeover_frames():
+    """Du lieu cu (nguoi o san trai) + tran DAgger (nguoi gianh san phai) -> gop ca hai."""
+    old = _dagger_log(match_id="cu", p_ctrl=HUMAN, o_ctrl=ML_BOT)
+    dag = _dagger_log(match_id="dagger", p_ctrl=RULE_BOT, o_ctrl=[ML_BOT] * 9 + [HUMAN] * 3)
+    rows, _, _ = train_module.build_rows(pd.concat([old, dag], ignore_index=True), "v1", ["player", "opponent"], {})
+    counts = rows.groupby(["match_id", "_agent"]).size().to_dict()
+    assert counts == {("cu", "player"): 12, ("dagger", "opponent"): 3}
+
+
+def test_both_views_of_one_match_land_in_the_same_group():
+    """Hai goc nhin cua CUNG mot tran phai cung nhom, neu khong se ro ri giua train va test."""
+    from spike_ai.split import group_keys
+
+    df = _dagger_log(p_ctrl=HUMAN, o_ctrl=[HUMAN] * 6 + [ML_BOT] * 6)
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], {})
+    assert set(rows["_agent"]) == {"player", "opponent"}
+    assert group_keys(rows, "match", ["player", "opponent"]).nunique() == 1
+
+
+def test_group_by_player_reads_the_id_of_each_rows_own_agent():
+    from spike_ai.split import group_keys
+
+    df = _dagger_log(p_ctrl=HUMAN, o_ctrl=HUMAN)
+    df["o_player_id"] = "P01_PHAI"
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], {})
+    keys = group_keys(rows, "player", ["player", "opponent"])
+    assert set(keys[rows["_agent"] == "player"]) == {"P01"}
+    assert set(keys[rows["_agent"] == "opponent"]) == {"P01_PHAI"}
+
+
+def test_nothing_left_after_filtering_is_a_clear_error():
+    df = _dagger_log(p_ctrl=RULE_BOT)
+    with pytest.raises(ValueError, match="Khong con frame nao"):
+        train_module.build_rows(df, "v1", "player", {})
+
+
+# ------------------------------------------------- trong so DAgger + loai tran
+class _WeightSpy:
+    """Model gia ghi lai sample_weight nhan duoc."""
+
+    seen: list = []
+
+    def fit(self, X, y, sample_weight=None):
+        _WeightSpy.seen.append(None if sample_weight is None else np.asarray(sample_weight))
+        self.classes_ = np.unique(y)
+        return self
+
+    def predict(self, X):
+        return np.full(len(X), self.classes_[0])
+
+    def predict_proba(self, X):
+        out = np.zeros((len(X), len(self.classes_)))
+        out[:, 0] = 1.0
+        return out
+
+
+def test_agent_weight_is_attached_per_agent():
+    df = _dagger_log(p_ctrl=HUMAN, o_ctrl=[HUMAN] * 4 + [ML_BOT] * 8)
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], {"agent_weight": {"opponent": 20}})
+    assert set(rows.loc[rows["_agent"] == "player", "_weight"]) == {1.0}
+    assert set(rows.loc[rows["_agent"] == "opponent", "_weight"]) == {20.0}
+
+
+def test_fit_passes_sample_weight_only_when_given(monkeypatch):
+    monkeypatch.setitem(model_zoo.REGISTRY, "wspy", lambda seed, **p: _WeightSpy())
+    _WeightSpy.seen = []
+    X, y = pd.DataFrame({"a": [0.0, 1.0, 2.0]}), pd.Series(["x", "y", "x"])
+    train_module._fit("wspy", 0, {}, X, y, None)
+    train_module._fit("wspy", 0, {}, X, y, np.array([1.0, 20.0, 1.0]))
+    assert _WeightSpy.seen[0] is None
+    assert list(_WeightSpy.seen[1]) == [1.0, 20.0, 1.0]
+
+
+def test_fit_with_weights_works_through_a_pipeline():
+    """logreg la Pipeline -> trong so phai di vao buoc cuoi, khong duoc bao loi."""
+    X, y = pd.DataFrame({"a": [0.0, 1.0, 2.0, 3.0]}), pd.Series(["x", "y", "x", "y"])
+    train_module._fit("logreg", 0, {}, X, y, np.array([1.0, 1.0, 5.0, 5.0]))
+
+
+def test_fit_with_weights_on_unsupported_model_is_a_clear_error():
+    """KNN khong nhan sample_weight. Am tham bo qua trong so thi so do sai ma khong ai biet."""
+    X, y = pd.DataFrame({"a": [0.0, 1.0, 2.0]}), pd.Series(["x", "y", "x"])
+    with pytest.raises(ValueError, match="khong ho tro sample_weight"):
+        train_module._fit("knn", 0, {"n_neighbors": 1}, X, y, np.ones(3))
+
+
+def test_run_applies_weights_and_exclude_matches(env, monkeypatch):
+    tmp, write_config = env
+    monkeypatch.setitem(model_zoo.REGISTRY, "wspy", lambda seed, **p: _WeightSpy())
+    _WeightSpy.seen = []
+    data = tmp / "data"
+    data.mkdir(parents=True, exist_ok=True)
+    for mid in ("that1", "that2", "mophong"):
+        o_ctrl = [HUMAN] * 6 + [ML_BOT] * 6
+        _dagger_log(match_id=mid, p_ctrl=RULE_BOT, o_ctrl=o_ctrl).to_csv(data / f"{mid}.csv", index=False)
+
+    cfg = write_config(
+        schema="v1",
+        agent=["player", "opponent"],
+        targets=["action"],
+        split={
+            "group_by": "match",
+            "dev_mode": "kfold",
+            "n_folds": 2,
+            "dev_ratio": 0,
+            "holdout_ratio": 0,
+            "salt": SALT,
+        },
+        models={"wspy": {}},
+        agent_weight={"opponent": 20},
+        exclude_matches=["mophong"],
+    )
+    train_module.run(cfg)
+    # 2 fold CV + 1 lan fit cuoi. Moi lan fit chi thay frame nguoi o san phai, trong so 20.
+    assert len(_WeightSpy.seen) == 3
+    assert all(set(w) == {20.0} for w in _WeightSpy.seen)
+    # lan fit cuoi tren ca pool: chi 2 tran that x 6 frame - tran mo phong da bi loai
+    assert len(_WeightSpy.seen[-1]) == 12
+
+
+# ------------------------------------------------- ghep nhan vao trang thai luc quyet dinh (ADR-011)
+SET = 7  # FinalIntent.Set
+
+
+def test_label_shift_pairs_each_label_with_the_frame_before_it():
+    """Game ghi log SAU khi ap hanh dong: o dong co nhan Set, bong da mang quy dao Set.
+    Nen nhan o frame k phai ghep voi feature o frame k-1."""
+    df = _dagger_log(n=8, p_ctrl=HUMAN)
+    df["p_input_intent"] = [0, 0, 0, 0, 0, SET, 0, 0]
+    rows, _, y = train_module.build_rows(df, "v1", "player", {"label_shift": 1})
+    got = dict(zip(rows["frame"], y["action"], strict=True))
+    assert got[4] == "Set"  # trang thai frame 4 -> quyet dinh Set o frame 5
+    assert got[5] == "None"
+    assert 7 not in got  # frame cuoi khong con frame ke tiep -> bo
+    assert len(rows) == 7
+
+
+def test_label_shift_never_crosses_a_match_boundary():
+    a = _dagger_log(n=4, match_id="a", p_ctrl=HUMAN)
+    b = _dagger_log(n=4, match_id="b", p_ctrl=HUMAN)
+    b["p_input_intent"] = [SET, 0, 0, 0]  # Set o frame DAU cua tran b
+    rows, _, y = train_module.build_rows(pd.concat([a, b], ignore_index=True), "v1", "player", {"label_shift": 1})
+    # dong cuoi cua tran a KHONG duoc nhan cu Set cua tran b
+    assert "Set" not in set(y.loc[(rows["match_id"] == "a").to_numpy(), "action"])
+    assert rows.groupby("match_id").size().to_dict() == {"a": 3, "b": 3}
+
+
+def test_label_shift_uses_who_decided_not_who_was_in_control_before():
+    """Lan gianh quyen DAgger bat dau dung frame 6: frame 5 (bot dieu khien) la trang thai,
+    con quyet dinh o frame 6 la cua NGUOI -> phai giu."""
+    o_ctrl = [ML_BOT] * 6 + [HUMAN] * 4
+    df = _dagger_log(n=10, p_ctrl=RULE_BOT, o_ctrl=o_ctrl)
+    rows, _, _ = train_module.build_rows(df, "v1", "opponent", {"label_shift": 1})
+    assert list(rows["frame"]) == [5, 6, 7, 8]
+
+
+def test_label_shift_keeps_move_labels_as_integers():
+    df = _dagger_log(n=6, p_ctrl=HUMAN)
+    df["p_input_move"] = [7.0, -7.0, 0.0, 7.0, 0.0, -7.0]
+    _, _, y = train_module.build_rows(df, "v1", "player", {"label_shift": 1})
+    assert y["move"].dtype.kind == "i"
+    assert set(y["move"]) <= {-1, 0, 1}
+
+
+def test_without_label_shift_nothing_changes():
+    df = _dagger_log(n=8, p_ctrl=HUMAN)
+    df["p_input_intent"] = [0, 0, 0, 0, 0, SET, 0, 0]
+    rows, _, y = train_module.build_rows(df, "v1", "player", {})
+    assert dict(zip(rows["frame"], y["action"], strict=True))[5] == "Set"
+    assert len(rows) == 8

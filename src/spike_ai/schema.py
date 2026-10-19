@@ -10,6 +10,7 @@ from .paths import SCHEMA_DIR
 SCHEMA_FILES = {
     "v0": "legacy_v0.json",
     "v1": "feature_spec.v1.json",
+    "v2": "feature_spec.v2.json",
 }
 
 
@@ -31,13 +32,19 @@ def feature_names(spec: dict) -> list[str]:
 
 
 def detect_version(columns) -> str:
-    """Nhận diện version của một file CSV dựa vào header."""
+    """Nhận diện version của một file CSV dựa vào header.
+
+    Chỉ nhìn TÊN cột, không nhìn giá trị, nên v2 được nhận ra bằng cột riêng của nó
+    (`rally_last_touch_kind`) chứ không bằng giá trị schema_version. Giá trị đó vẫn được
+    kiểm lại trong validate_columns.
+    """
     columns = list(columns)
     if columns == raw_column_names(load_spec("v0")):
         return "v0"
-    if "schema_version" in columns:
-        return "v1"
-    raise ValueError(f"Không nhận diện được format log. Header: {columns}")
+    if "schema_version" not in columns:
+        raise ValueError(f"Không nhận diện được format log. Header: {columns}")
+    # v2 = v1 + cột rally_last_touch_kind (thêm ở cuối, xem DatasetLogger.cpp)
+    return "v2" if "rally_last_touch_kind" in columns else "v1"
 
 
 def validate_columns(df: pd.DataFrame, version: str) -> None:
@@ -45,7 +52,8 @@ def validate_columns(df: pd.DataFrame, version: str) -> None:
     missing = [c for c in raw_column_names(load_spec(version)) if c not in df.columns]
     if missing:
         raise ValueError(f"Log thiếu cột theo schema {version}: {missing}")
-    if version == "v1":
+    expected_value = {"v1": 1, "v2": 2}.get(version)
+    if expected_value is not None:
         versions = set(df["schema_version"].unique())
-        if versions != {1}:
-            raise ValueError(f"schema_version không hợp lệ: {versions}")
+        if versions != {expected_value}:
+            raise ValueError(f"schema_version không hợp lệ cho {version}: {versions}, mong đợi {{{expected_value}}}")

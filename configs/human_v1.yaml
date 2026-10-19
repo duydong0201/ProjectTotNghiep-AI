@@ -5,6 +5,10 @@ data_dirs:
   - data/raw/v1/human
 agent: player
 targets: [move, action]
+# Chỉ giữ frame trong cửa sổ +/- 20 frame quanh mỗi lần chạm bóng. Trong log v1 thật chỉ ~0,7%
+# frame có hành động, phần còn lại là `None` (đứng chờ bóng): train trên toàn bộ vừa chậm vừa
+# làm lớp `None` áp đảo. Cửa sổ giữ LẠI 100% mẫu hành động (PLAN.md GĐ4).
+frames_around_action: 20
 split:
   # câu hỏi (a): bắt chước hành vi của những người chơi đã có trong dữ liệu -> nhóm theo trận
   group_by: match

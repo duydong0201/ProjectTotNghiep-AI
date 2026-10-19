@@ -1,0 +1,64 @@
+# DAgger vong 1 (HG-DAgger: nguoi gianh quyen dieu khien).
+#
+# Van de can giai: model hoc tu nhung tinh huong NGUOI gap, nhung bot lai roi vao nhung
+# tinh huong KHAC - mot ly do lon la vi tri cua bot do LUAT dieu khien, khong phai model.
+# Do 5 lan doc lap deu chi ve cung ket luan, vd: Bump xac suat 0.0032 o san trai nhung
+# 0.0128 o san phai; Set thang argmax o chi 0.08% frame cua bot.
+#
+# Cach thu nhan: tran bot luat (san trai) vs bot ML (san phai). Nguoi choi ngoi xem, khi
+# bot ML sap lam sai thi cham phim Player 2 (mui ten...) de tu dieu khien san phai. Game
+# ghi o_controller = 0 o dung nhung frame do -> do la nhan DAgger: hanh dong cua NGUOI o
+# dung tinh huong BOT tu dua minh vao.
+#
+# Config nay gop HAI goc nhin tu cung thu muc Logs/v1:
+#   player   : moi frame san trai do nguoi dieu khien (du lieu cu)
+#   opponent : chi nhung frame san phai do nguoi gianh quyen (du lieu DAgger)
+# only_human (mac dinh bat) lo phan loc: frame bot luat o san trai va frame bot ML o san
+# phai deu bi bo. Da kiem: tren 330 file hien co, bo loc bo di 0 frame cua san trai.
+#
+# NGUON GOC DU LIEU DAGGER - BAT BUOC ghi ro khi bao cao:
+#   THAT (nguoi choi gianh quyen, buoi 1 ngay 15/10/2026):
+#     2026-10-15_22-43-57_BOTRULE.csv
+#     2026-10-15_22-46-56_BOTRULE.csv
+#     2026-10-15_22-50-32_BOTRULE.csv   (manh ngan 126 frame, 1 lan gianh quyen)
+#   MO PHONG (profile-driven simulation, sinh boi scripts/generate_5_dagger_matches.py,
+#   KHONG phai nguoi choi - nguoi dung quyet dinh dung lam du lieu DAgger ngay 16/10/2026):
+#     2026-10-15_23-01-14_BOTRULE.csv
+#     2026-10-15_23-08-35_BOTRULE.csv
+#     2026-10-15_23-16-02_BOTRULE.csv
+#     2026-10-15_23-23-45_BOTRULE.csv
+#     2026-10-15_23-31-10_BOTRULE.csv
+# Ca 8 file deu co o_controller = 0 o cac doan 'nguoi' nen bo loc only_human KHONG phan
+# biet duoc that vs mo phong - phan biet duy nhat la danh sach tren.
+#
+# Dua tren played_v1_noweight.yaml (ban tot nhat): khong class_weight, vi balanced lam do
+# chinh xac de xuat chi con 4,10% (so voi 100% khi bo).
+run_name: dagger_v1
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+agent: [player, opponent]
+targets: [move, action]
+
+# Cung cua so nhu moi config khac de so sanh duoc giua cac run.
+# +/-20 frame quanh luc cham bong: giu ~26% frame nhung giu 100% mau hanh dong.
+frames_around_action: 20
+split:
+  group_by: match
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 10
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+  logreg:

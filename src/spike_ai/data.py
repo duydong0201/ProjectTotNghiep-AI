@@ -73,8 +73,10 @@ def load_match(path: str | Path) -> tuple[pd.DataFrame, str]:
     """Đọc một file log, trả về (DataFrame, version). Luôn có cột match_id và source."""
     path = Path(path)
     df = pd.read_csv(path)
+
     version = detect_version(df.columns)
     validate_columns(df, version)
+
     if version == "v0":
         df = rebuild_frames_v0(df)
 
@@ -86,22 +88,131 @@ def load_match(path: str | Path) -> tuple[pd.DataFrame, str]:
     return df, version
 
 
+def adapt_version(df: pd.DataFrame, source: str, target: str) -> pd.DataFrame:
+    """Đưa một DataFrame log từ schema `source` sang schema `target`.
+
+    Cần vì một thư mục có thể chứa lẫn hai định dạng: game ghi v1 trước 12/10/2026 và
+    ghi v2 sau đó, mà log của cùng một người chơi vẫn nằm chung một chỗ.
+
+    Chỉ hỗ trợ v1 <-> v2, vì hai cái đó khác nhau đúng một cột. v0 có format hoàn toàn
+    khác (thiếu toàn bộ trạng thái bóng) nên không chuyển được.
+    """
+    if source == target:
+        return df
+    if {source, target} != {"v1", "v2"}:
+        raise ValueError(f"Không chuyển được schema {source} -> {target}")
+
+    out = df.copy()
+    if target == "v2":
+        # Suy ra cột còn thiếu. Độ chính xác 100% trên 9.346 frame, xem ADR-009.
+        out["rally_last_touch_kind"] = rebuild_kind_v1_to_v2(out)
+        out["schema_version"] = 2
+    else:
+        # Hạ xuống v1: bỏ cột thừa. Không mất gì cho 21 feature của v1.
+        out = out.drop(columns=["rally_last_touch_kind"])
+        out["schema_version"] = 1
+    return out
+
+
 def load_dirs(dirs: list[str | Path], expected_version: str | None = None) -> pd.DataFrame:
-    """Đọc toàn bộ *.csv (đệ quy) trong các thư mục, bỏ qua file rỗng."""
+    """Đọc toàn bộ *.csv (đệ quy) trong các thư mục, bỏ qua file rỗng.
+
+    `expected_version` là schema ĐÍCH. File nào khác định dạng đó mà chuyển được
+    (v1 <-> v2) thì tự chuyển, và số file đã chuyển được IN RA - không im lặng, vì trộn
+    định dạng ngoài ý muốn là lỗi thật cần thấy ngay.
+    """
     frames = []
+    adapted: dict[str, int] = {}
     for d in dirs:
         d = resolve(d)
         if not d.exists():
             raise FileNotFoundError(f"Không thấy thư mục dữ liệu: {d}")
         for path in sorted(d.rglob("*.csv")):
+            if path.name.endswith("_feat.csv"):
+                continue  # file dump feature để đối chiếu, không phải log trận
             df, version = load_match(path)
             if df.empty:
                 continue
             if expected_version and version != expected_version:
-                raise ValueError(f"{path.name} là {version}, config yêu cầu {expected_version}")
+                try:
+                    df = adapt_version(df, version, expected_version)
+                except ValueError as exc:
+                    raise ValueError(f"{path.name} là {version}, config yêu cầu {expected_version}") from exc
+                adapted[version] = adapted.get(version, 0) + 1
             frames.append(df)
 
     if not frames:
         raise FileNotFoundError(f"Không có file CSV nào trong {dirs}")
 
+    for version, count in sorted(adapted.items()):
+        print(f"  đã chuyển {count} file từ schema {version} sang {expected_version}")
+
     return pd.concat(frames, ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
+# Dung lai cot rally_last_touch_kind cho log v1 (nang v1 -> v2)
+# ---------------------------------------------------------------------------
+# Cot nay chi duoc game ghi tu 12/10/2026. 150 tran nguoi choi thu ngay 10-10 va 10-11
+# nam truoc moc do, nen khong co cot that. Nhung dung lai duoc tu thong tin DA CO trong
+# log v1: rally_last_touch (AI cham) + rally_touch_count (lan thu may) + cot intent.
+#
+# DO CHINH XAC DA DO: 100,00% tren 9.346 frame cua 2 file v2 that (file co ca cot thuc te
+# de doi chieu). Xem docs/decisions/adr-009-derive-touch-kind-for-v1-logs.md.
+#
+# LUU Y VE NGUON GOC: cot nay la SUY RA, khong phai do game ghi truc tiep. File nang cap
+# phai de o thu muc rieng co ten noi ro dieu do (vd human_kind_derived) - `source` do
+# load_match gan bang ten thu muc se theo du lieu vao luc train.
+ENTITY_NONE = 8  # GameConfig::NONE, KHONG phai -1
+
+# FinalIntent (cot p_input_intent/o_input_intent) -> ActionState (cot rally_last_touch_kind).
+# HAI ENUM KHAC NHAU, vd Set la 7 ben FinalIntent nhung 6 ben ActionState.
+# Jump (FinalIntent 1) khong co trong bang: no khong cham bong nen khong bao gio
+# duoc ghi vao lastTouchKind.
+FINAL_INTENT_TO_ACTION_STATE = {
+    2: 2,  # Spike
+    5: 5,  # Bump
+    6: 3,  # Slide
+    7: 6,  # Set
+    8: 4,  # Serve
+    9: 7,  # SpikeLight
+    10: 8,  # SpikeMedium
+    11: 9,  # SpikeStrong
+}
+
+# Khi phat hien mot cu cham moi, nhin lui toi da ngan nay frame de tim intent sinh ra no.
+# Can nhin lui vi DatasetLogger ghi dong log TRUOC khi intent duoc ap dung, nen intent va
+# hau qua cua no co the nam o hai frame khac nhau.
+KIND_LOOKBACK = 12
+
+
+def rebuild_kind_v1_to_v2(df: pd.DataFrame, lookback: int = KIND_LOOKBACK) -> pd.Series:
+    """Suy ra cot rally_last_touch_kind cho mot DataFrame log v1."""
+    import numpy as np
+
+    last_touch = df["rally_last_touch"].fillna(ENTITY_NONE).astype(int).to_numpy()
+    touch_count = df["rally_touch_count"].fillna(0).astype(int).to_numpy()
+    player_intent = df["p_input_intent"].fillna(0).astype(int).to_numpy()
+    opp_intent = df["o_input_intent"].fillna(0).astype(int).to_numpy()
+
+    out = np.zeros(len(df), dtype=int)
+    current = 0
+    for k in range(len(df)):
+        if last_touch[k] == ENTITY_NONE:
+            # Pha bong vua reset -> RallyState{} dat lastTouchKind ve None.
+            current = 0
+        elif k == 0 or last_touch[k] != last_touch[k - 1] or touch_count[k] != touch_count[k - 1]:
+            # Co cu cham moi. `k == 0` la bat buoc: dong dau file thuong DA co san mot cu
+            # cham (cu giao bong xay ra truoc dong log dau tien), khong co dong truoc de so.
+            # Thieu nhanh nay thi mat ca pha bong dau - do duoc 73/5385 frame sai.
+            #
+            # `touch_count` doi cung tinh la cu cham moi: khi CUNG mot nhan vat cham hai lan
+            # thi lastTouch khong doi, chi touchCount tang.
+            source = player_intent if last_touch[k] == 0 else opp_intent
+            for j in range(k, max(-1, k - lookback), -1):
+                if source[j] in FINAL_INTENT_TO_ACTION_STATE:
+                    current = FINAL_INTENT_TO_ACTION_STATE[source[j]]
+                    break
+        out[k] = current
+
+    return pd.Series(out, index=df.index, name="rally_last_touch_kind")

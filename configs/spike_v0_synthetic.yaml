@@ -1,0 +1,39 @@
+# SANITY CHECK trên dữ liệu TỔNG HỢP - không phải hành vi người chơi.
+#
+# Nhãn do `spike_policy()` trong scripts/make_synthetic_v0.py sinh ra, kèm 12% nhiễu.
+# Quy luật đó phụ thuộc `self_dist_to_net` và `dx_opp`, cả hai đều nằm trong 6 feature của
+# v0, nên pipeline PHẢI khôi phục được. Trần lý thuyết ~0.88 vì có 12% nhiễu nhãn.
+#
+# Mục đích duy nhất: kiểm chứng pipeline (feature, nhãn, chia dữ liệu, đo, export) hoạt động
+# đúng ở quy mô lớn. Nếu macro-F1 thấp hẳn so với trần thì có bug, phát hiện được mà không
+# cần chờ dữ liệu thật.
+#
+# KHÔNG dùng model này cho game, và KHÔNG trích dẫn con số này như kết quả học từ người chơi.
+run_name: spike_v0_synthetic
+schema: v0
+data_dirs:
+  - data/raw/v0_synthetic
+agent: player
+targets: [spike_choice]
+split:
+  group_by: match
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHÔNG đổi salt sau khi đã đo trên holdout - đổi salt = đổi toàn bộ cách chia
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 6
+    min_samples_leaf: 20
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 8
+    min_samples_leaf: 10
+    class_weight: balanced
+  logreg:
+    class_weight: balanced

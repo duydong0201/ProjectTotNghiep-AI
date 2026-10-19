@@ -1,0 +1,46 @@
+# Train tren DU LIEU THU TU CHINH GAME (6 tran nguoi choi vs bot ML, 09/10/2026).
+#
+# Vi sao can config rieng: model train tren du lieu tong hop dat macro-F1 0.892 offline nhung
+# trong game de xuat `None` o 8014/8014 frame - vo dung. Nguyen nhan la phan bo trang thai
+# lech han:
+#
+#   feature             du lieu tong hop   game that
+#   self_dist_to_net           742             394
+#   ball_y                     414             549
+#   can_act                   0.55            0.95
+#
+# Bo nay nho (29.294 frame, 366 hanh dong) nhung nam DUNG vung phan bo ma bot gap trong game.
+# Muc dich: kiem gia thuyet "van de la phan bo, khong phai so luong".
+#
+# Ky vong: diem thap hon 0.892 vi it mau, nhung model phai THUC SU hanh dong trong game.
+run_name: play_p01_v1
+schema: v1
+data_dirs:
+  - data/raw/v1/play_P01
+agent: player
+targets: [move, action]
+
+# Cung cua so nhu human_v1.yaml de so sanh duoc
+frames_around_action: 20
+split:
+  group_by: match
+  # chi 6 tran -> moi fold khoang 1 tran. Rat mong, nhung do bang CV con hon mot tap dev don le.
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do tren holdout
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  # it mau -> cay nong, la nhieu mau
+  decision_tree:
+    max_depth: 8
+    min_samples_leaf: 10
+    class_weight: balanced
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_leaf: 5
+    class_weight: balanced

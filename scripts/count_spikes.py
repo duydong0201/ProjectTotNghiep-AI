@@ -14,9 +14,15 @@ bật `ENABLE_BOT_VS_BOT` thì cả hai bên đều là bot - loại log đó ph
 
 import argparse
 import sys
+from pathlib import Path
 
-from spike_ai.data import load_dirs
-from spike_ai.features import SPIKE_CHOICES, build
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+# Cho chay bang `python scripts/count_spikes.py` ma khong can PYTHONPATH hay `pip install -e .`.
+# Phai dat truoc cac import cua spike_ai, nen hai dong duoi vi pham E402 mot cach co y.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from spike_ai.data import load_dirs  # noqa: E402
+from spike_ai.features import SPIKE_CHOICES, build  # noqa: E402
 
 # Dưới ngưỡng này thì F1 của lớp đó quá nhiễu để kết luận (xem evaluate.MIN_SUPPORT = 10,
 # nhưng để train được tử tế cần nhiều hơn hẳn).

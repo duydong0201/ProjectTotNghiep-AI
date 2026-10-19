@@ -63,6 +63,13 @@ def group_keys(df: pd.DataFrame, group_by: str, agent: str) -> pd.Series:
     if group_by == "match":
         return df["match_id"].astype(str)
     if group_by == "player":
+        if "_agent" in df.columns:
+            # Gop nhieu goc nhin (DAgger): moi dong lay ID nguoi choi cua CHINH agent cua no.
+            for col in ("p_player_id", "o_player_id"):
+                if col not in df.columns:
+                    raise ValueError(f"group_by=player cần cột {col} (chỉ có ở schema v1)")
+            ids = df["p_player_id"].where(df["_agent"] == "player", df["o_player_id"])
+            return ids.astype(str)
         col = "p_player_id" if agent == "player" else "o_player_id"
         if col not in df.columns:
             raise ValueError(f"group_by=player cần cột {col} (chỉ có ở schema v1)")
