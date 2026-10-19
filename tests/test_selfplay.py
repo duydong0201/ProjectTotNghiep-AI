@@ -82,3 +82,48 @@ def test_main_game_model_is_never_touched(fake_game, monkeypatch):
     _scores(monkeypatch, [40.0, 50.0])
     selfplay.run(str(cfg), iterations=1)
     assert (game / "Source/AI/Generated" / selfplay.HEADER_NAME).read_text(encoding="utf-8") == "model game chinh"
+
+
+def test_compressed_logs_are_read_like_plain_csv(tmp_path):
+    """Log tự sinh được nén .csv.gz: bộ đọc dữ liệu và eval_ingame phải đọc như .csv thường."""
+    import numpy as np
+    import pandas as pd
+
+    from spike_ai.data import load_dirs
+    from spike_ai.schema import load_spec, raw_column_names
+
+    folder = tmp_path / "auto" / "iter_01"
+    folder.mkdir(parents=True)
+    df = pd.DataFrame({c: np.zeros(5) for c in raw_column_names(load_spec("v1"))})
+    df["schema_version"], df["match_id"] = 1, "auto_s1_m000_BOTRULE"
+    df.to_csv(folder / "auto_s1_m000_BOTRULE.csv", index=False)
+    (folder / "x_feat.csv").write_text("a\n1\n", encoding="utf-8")
+
+    selfplay.compress_logs(folder)
+
+    assert sorted(p.name for p in folder.iterdir()) == ["auto_s1_m000_BOTRULE.csv.gz", "x_feat.csv.gz"]
+    loaded = load_dirs([tmp_path / "auto"], expected_version="v1")
+    assert len(loaded) == 5 and set(loaded["match_id"]) == {"auto_s1_m000_BOTRULE"}
+
+
+def test_eval_logs_are_deleted_after_scoring(tmp_path, monkeypatch):
+    eval_dir = tmp_path / "eval" / "iter01"
+
+    def fake_run(sp, out, n, seed, tag):
+        out.mkdir(parents=True)
+        (out / "m.csv").write_text("x", encoding="utf-8")
+        return "TONG"
+
+    fake_side = {
+        "pct_diem_thang": 50.0,
+        "diem_thang": 1,
+        "diem_mat": 1,
+        "cu_dap_trung_moi_tran": 1.0,
+        "set_moi_tran": 0.0,
+        "jump_moi_tran": 0.0,
+        "chuoi_set_jump_spike": 0,
+    }
+    monkeypatch.setattr(selfplay, "run_matches", fake_run)
+    monkeypatch.setattr(selfplay.eval_ingame, "evaluate", lambda paths: {"sides": {"phải": fake_side}})
+    assert selfplay.score_ml({}, eval_dir)["pct_diem_thang"] == 50.0
+    assert not eval_dir.exists()

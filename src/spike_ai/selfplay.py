@@ -18,6 +18,7 @@ models/<run>/best/; đưa vào game chính là việc làm tay, sau khi đã xem
 """
 
 import argparse
+import gzip
 import json
 import shutil
 import subprocess
@@ -59,6 +60,14 @@ def run_matches(sp: dict, out_dir: Path, matches: int, seed: int, tag: str) -> s
     done = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
     totals = [line for line in done.stdout.splitlines() if line.startswith("TONG")]
     return totals[-1] if totals else done.stdout.strip().splitlines()[-1]
+
+
+def compress_logs(folder: Path) -> None:
+    """Nén mọi .csv trong thư mục thành .csv.gz (nhỏ hơn ~40 lần, pandas đọc thẳng được) rồi xoá bản gốc."""
+    for csv in sorted(folder.rglob("*.csv")):
+        with open(csv, "rb") as src, gzip.open(csv.with_name(csv.name + ".gz"), "wb", compresslevel=6) as dst:
+            shutil.copyfileobj(src, dst)
+        csv.unlink()
 
 
 def build_runner(sp: dict) -> None:
@@ -113,6 +122,8 @@ def score_ml(sp: dict, eval_dir: Path) -> dict:
         shutil.rmtree(eval_dir)
     run_matches(sp, eval_dir, sp.get("eval_matches", 20), sp.get("eval_seed", 100000), "eval")
     right = eval_ingame.evaluate([eval_dir])["sides"]["phải"]
+    # Log trận đo chỉ dùng để tính điểm một lần (không dùng train) và rất nặng (~8 MB/trận): xoá.
+    shutil.rmtree(eval_dir, ignore_errors=True)
     keys = ("pct_diem_thang", "diem_thang", "diem_mat", "cu_dap_trung_moi_tran", "set_moi_tran", "jump_moi_tran")
     return {k: right[k] for k in keys} | {"chuoi_set_jump_spike": right["chuoi_set_jump_spike"]}
 
@@ -148,9 +159,9 @@ def run(config_path: str, iterations: int | None = None) -> dict:
 
     for it in range(1, n_iter + 1):
         print(f"\n== Vòng {it}/{n_iter}")
-        total = run_matches(
-            sp, auto_logs / f"iter_{stamp}_{it:02d}", sp["matches_per_iteration"], 1000 * it, f"it{it:02d}"
-        )
+        iter_logs = auto_logs / f"iter_{stamp}_{it:02d}"
+        total = run_matches(sp, iter_logs, sp["matches_per_iteration"], 1000 * it, f"it{it:02d}")
+        compress_logs(iter_logs)
         print(f"   tự chơi: {total}")
         cfg_path = train_config(cfg, run_dir, it)
         model = train_candidate(cfg_path, f"{cfg['run_name']}_iter{it:02d}")
