@@ -31,6 +31,7 @@ Kết quả:
 """
 
 import argparse
+import inspect
 import json
 import shutil
 from datetime import datetime
@@ -108,7 +109,7 @@ def action_window_mask(df: pd.DataFrame, y: pd.DataFrame, half_width: int) -> np
     Cửa sổ KHÔNG tràn qua ranh giới trận: hai trận nối nhau trong cùng DataFrame, frame cuối
     trận này không liên quan gì tới frame đầu trận sau.
     """
-    is_action = (y["action"] != "None").to_numpy()
+    is_action = (y["action"].notna() & (y["action"] != "None")).to_numpy()
     keep = np.zeros(len(df), dtype=bool)
 
     for positions in df.groupby("match_id", sort=False).indices.values():
@@ -123,6 +124,118 @@ def action_window_mask(df: pd.DataFrame, y: pd.DataFrame, half_width: int) -> np
     return keep
 
 
+CONTROLLER_PREFIX = {"player": "p_", "opponent": "o_"}
+
+
+def as_agent_list(agent) -> list[str]:
+    """`agent` trong config co the la mot chuoi ("player") hoac mot danh sach."""
+    return [agent] if isinstance(agent, str) else list(agent)
+
+
+def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
+    """Dung (df, X, y) de train, gop tu MOT HAY NHIEU goc nhin (agent).
+
+    Hai bo loc ap dung RIENG cho tung agent, roi moi gop lai:
+
+    1. CHI GIU FRAME DO NGUOI DIEU KHIEN (`only_human`, mac dinh bat).
+       Logs/v1 chua ca tran nguoi-vs-bot lan tran DAgger, trong do san trai la BOT LUAT.
+       Khong loc thi train `agent: player` tren thu muc do se hoc tu bot luat.
+       Dua vao cot <p_|o_>controller cua chinh agent (enum Controller: human = 0), nen
+       chinh xac tung frame - o tran DAgger, san phai chi la nguoi o dung nhung doan
+       nguoi choi gianh quyen. Log khong co cot controller (v0) thi bo qua buoc nay.
+
+    2. CUA SO QUANH LUC CHAM BONG (`frames_around_action`).
+       Tinh tren df DAY DU roi moi AND voi bo loc 1, vi cua so can cac frame lien tiep.
+
+    Cot `_agent` duoc them de group_keys biet dong nao thuoc goc nhin nao. Hai goc nhin
+    cua CUNG mot tran co cung match_id, nen luon roi vao cung mot fold - khong ro ri.
+    """
+    agents = as_agent_list(agents)
+    only_human = cfg.get("only_human", True)
+    weights = cfg.get("agent_weight") or {}
+    shift = int(cfg.get("label_shift", 0))
+    # Dong nao con dong ke tiep TRONG CUNG TRAN (de lay nhan cua dong do).
+    by_match = df["match_id"].to_numpy()
+    has_next = (df.groupby(by_match, sort=False).cumcount(ascending=False) >= shift).to_numpy() if shift else None
+    window = cfg.get("frames_around_action")
+    human_code = load_spec(version).get("enums", {}).get("Controller", {}).get("human", 0)
+
+    parts_df, parts_X, parts_y = [], [], []
+    for agent in agents:
+        X, y = build(df, version, agent)
+        keep = np.ones(len(df), dtype=bool)
+        notes = []
+        col = f"{CONTROLLER_PREFIX[agent]}controller"
+        controller = df[col] if col in df.columns else None
+
+        if shift:
+            # GHEP NHAN VAO DUNG TRANG THAI LUC RA QUYET DINH (label_shift, xem ADR-011).
+            #
+            # Game ghi log SAU khi da ap hanh dong cua frame do: trong GenerateIntent::update,
+            # cooldown / bat dau nhay / danh bong deu chay TRUOC khi MainScene ghi log. Do tren
+            # 2.871 lan bam phim (120 tran): o dong co nhan, nhan vat da vao cooldown 100%, bong
+            # da mang quy dao cu danh 100%, nguoi cham cuoi da la "minh" 100% - model nhin thay
+            # dap an ngay trong feature. Dong ngay truoc (k-1) moi la trang thai luc quyet dinh:
+            # nhan vat ranh tay 99,2-100%, bong chua bi danh.
+            #
+            # Nen: feature cua dong k ghep voi nhan cua dong k+shift, trong cung tran. Ai ra
+            # quyet dinh cung lay o dong k+shift (vd lan gianh quyen DAgger bat dau dung frame do).
+            y = y.groupby(by_match, sort=False).shift(-shift)
+            if controller is not None:
+                controller = controller.groupby(by_match, sort=False).shift(-shift)
+            keep &= has_next
+            notes.append(f"ghep nhan lui {shift} frame")
+
+        if only_human and controller is not None:
+            human = (controller == human_code).to_numpy()
+            notes.append(f"nguoi dieu khien {human.sum():,}")
+            keep &= human
+
+        if window:
+            in_window = action_window_mask(df, y, int(window))
+            notes.append(f"cua so +/-{window} {in_window.sum():,}")
+            keep &= in_window
+
+        print(f"  agent={agent}: giu {keep.sum():,}/{len(df):,} frame ({', '.join(notes) or 'khong loc'})")
+        parts_df.append(df[keep].assign(_agent=agent, _weight=float(weights.get(agent, 1.0))))
+        parts_X.append(X[keep])
+        part_y = y[keep].copy()
+        # groupby().shift() doi move sang so thuc (1.0) vi co NaN o cuoi tran; cac dong giu lai
+        # khong con NaN nen ep ve so nguyen, de ten lop van la -1/0/1 nhu spec.
+        if shift and "move" in part_y and part_y["move"].notna().all():
+            part_y["move"] = part_y["move"].astype(int)
+        parts_y.append(part_y)
+
+    out_df = pd.concat(parts_df, ignore_index=True)
+    out_X = pd.concat(parts_X, ignore_index=True)
+    out_y = pd.concat(parts_y, ignore_index=True)
+    if out_df.empty:
+        raise ValueError(
+            f"Khong con frame nao de train sau khi loc (agents={agents}, only_human={only_human}). "
+            "Kiem cot controller trong log, hoac dat only_human: false neu co y train tren bot."
+        )
+    return out_df, out_X, out_y
+
+
+def _fit(name, seed, params, X, y, w):
+    """Tao model va fit. `w` = trong so tung dong (None = khong dung trong so).
+
+    Dung cho DAgger: du lieu gianh quyen chi chiem vai phan tram so dong, nen bi du lieu
+    cu nhan chim - do duoc vong 1 khong doi duoc hanh vi bot (argmax ra Set/Jump/Bump o 0
+    frame truoc va sau). Xem config agent_weight.
+    """
+    model = model_zoo.create(name, seed, params)
+    if w is None:
+        return model.fit(X, y)
+    final_step = model.steps[-1] if hasattr(model, "steps") else None
+    est = final_step[1] if final_step else model
+    if "sample_weight" not in inspect.signature(est.fit).parameters:
+        raise ValueError(f"model '{name}' khong ho tro sample_weight - bo no khoi config co agent_weight")
+    if final_step:
+        return model.fit(X, y, **{f"{final_step[0]}__sample_weight": w})
+    return model.fit(X, y, sample_weight=w)
+
+
 def run(config_path: str, final: bool = False) -> dict:
     cfg = load_config(config_path)
     version, agent, seed = cfg["schema"], cfg["agent"], cfg.get("seed", 42)
@@ -130,15 +243,20 @@ def run(config_path: str, final: bool = False) -> dict:
     spec = load_spec(version)
 
     df = load_data(cfg["data_dirs"], version, cfg.get("game_versions"))
-    X, y = build(df, version, agent)
-
-    # Lấy cửa sổ quanh lúc chạm bóng (tuỳ chọn). Phải lọc TRƯỚC khi chia tập, nếu không thì
-    # chỉ số dòng của split không còn khớp với X/y.
-    window = cfg.get("frames_around_action")
-    if window:
-        keep = action_window_mask(df, y, int(window))
-        print(f"frames_around_action={window}: giữ {keep.sum():,}/{len(df):,} frame ({keep.mean():.1%})")
-        df, X, y = df[keep].reset_index(drop=True), X[keep].reset_index(drop=True), y[keep].reset_index(drop=True)
+    # Loc nguoi dieu khien + cua so quanh luc cham bong, cho tung agent roi gop lai.
+    # Phai lam TRUOC khi chia tap, neu khong chi so dong cua split khong con khop voi X/y.
+    excluded = set(cfg.get("exclude_matches") or [])
+    if excluded:
+        drop = df["match_id"].isin(excluded)
+        n_drop = df.loc[drop, "match_id"].nunique()
+        print(f"  exclude_matches: bo {n_drop}/{len(excluded)} tran ({int(drop.sum()):,} frame)")
+        df = df[~drop].reset_index(drop=True)
+    df, X, y = build_rows(df, version, agent, cfg)
+    W = df["_weight"].to_numpy() if cfg.get("agent_weight") else None
+    if W is not None:
+        for a in as_agent_list(agent):
+            m = (df["_agent"] == a).to_numpy()
+            print(f"  agent_weight {a}: x{W[m][0] if m.any() else 0:g} tren {m.sum():,} dong -> tong {W[m].sum():,.0f}")
 
     groups = group_keys(df, s["group_by"], agent)
     index = split_by_hash(groups, s["salt"], s["dev_ratio"], s["holdout_ratio"])
@@ -173,16 +291,20 @@ def run(config_path: str, final: bool = False) -> dict:
 
             if s["dev_mode"] == "single":
                 fit_idx = keep[TRAIN]
-                model = model_zoo.create(name, seed, params).fit(X.iloc[fit_idx], y[target].iloc[fit_idx])
+                model = _fit(
+                    name, seed, params, X.iloc[fit_idx], y[target].iloc[fit_idx], None if W is None else W[fit_idx]
+                )
                 dev_idx = keep[DEV]
                 m = compute_metrics(y[target].iloc[dev_idx], model.predict(X.iloc[dev_idx]), order)
                 eval_name, golden = "dev", X.iloc[dev_idx].head(N_GOLDEN)
                 n_train, n_eval = len(fit_idx), len(dev_idx)
             else:
                 fit_idx = np.union1d(keep[TRAIN], keep[DEV])
-                m = _cross_validate(X, y[target], df, agent, s, fit_idx, name, params, seed, order)
+                m = _cross_validate(X, y[target], df, agent, s, fit_idx, name, params, seed, order, W)
                 # model cuối cùng (để export / đo holdout) fit trên toàn bộ dữ liệu không thuộc holdout
-                model = model_zoo.create(name, seed, params).fit(X.iloc[fit_idx], y[target].iloc[fit_idx])
+                model = _fit(
+                    name, seed, params, X.iloc[fit_idx], y[target].iloc[fit_idx], None if W is None else W[fit_idx]
+                )
                 eval_name = "cv" if s["dev_mode"] == "kfold" else "lopo"
                 golden = X.iloc[fit_idx].head(N_GOLDEN)
                 n_train, n_eval = len(fit_idx), len(fit_idx)
@@ -206,7 +328,7 @@ def run(config_path: str, final: bool = False) -> dict:
                     "model": model,
                     "model_name": name,
                     "target": target,
-                    "agent": agent,
+                    "agent": "+".join(as_agent_list(agent)),
                     "schema": version,
                     "features": feature_names(spec),
                     "classes": [str(c) for c in model.classes_],
@@ -227,17 +349,18 @@ def run(config_path: str, final: bool = False) -> dict:
     return all_metrics
 
 
-def _cross_validate(X, y_target, df, agent, s, pool_idx, name, params, seed, order) -> dict:
+def _cross_validate(X, y_target, df, agent, s, pool_idx, name, params, seed, order, W=None) -> dict:
     """CV trên pool_idx. Trả về chỉ số tính trên dự đoán out-of-fold, kèm trung bình ± std từng fold."""
     by = "player" if s["dev_mode"] == "lopo" else s["group_by"]
     cv_groups = group_keys(df, by, agent).iloc[pool_idx].reset_index(drop=True)
     X_pool, y_pool = X.iloc[pool_idx].reset_index(drop=True), y_target.iloc[pool_idx].reset_index(drop=True)
+    W_pool = None if W is None else W[pool_idx]
 
     # mỗi dòng của pool được validate đúng một lần -> mọi giá trị đều bị ghi đè bằng dự đoán out-of-fold
     oof = y_pool.copy()
     fold_metrics = []
     for tr, va in cv_folds(cv_groups, s["dev_mode"], s["n_folds"]):
-        model = model_zoo.create(name, seed, params).fit(X_pool.iloc[tr], y_pool.iloc[tr])
+        model = _fit(name, seed, params, X_pool.iloc[tr], y_pool.iloc[tr], None if W_pool is None else W_pool[tr])
         pred = model.predict(X_pool.iloc[va])
         oof.iloc[va] = pred
         fold_metrics.append(compute_metrics(y_pool.iloc[va], pred, order))
@@ -253,7 +376,8 @@ def _load_holdout(cfg, s, df, X, y, index, version, agent):
     if cfg.get("holdout_dirs"):
         df_h = load_data(cfg["holdout_dirs"], version, cfg.get("game_versions"))
         assert_no_overlap(df["match_id"], df_h["match_id"])
-        return build(df_h, version, agent)
+        _, X_h, y_h = build_rows(df_h, version, agent, {**cfg, "frames_around_action": None})
+        return X_h, y_h
     if s["holdout_ratio"] > 0:
         idx = index[HOLDOUT]
         return X.iloc[idx], y.iloc[idx]
