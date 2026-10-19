@@ -5,6 +5,13 @@
 
 ---
 
+## [2026-10-19]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Đo offline đúng cách bot ra quyết định trong game | Done | `policy.py`, `eval_policy.py`, 17 test mới, [ADR-013](docs/decisions/adr-013-evaluate-with-game-policy.md). 30 trận thật: macro-F1 argmax 0,110, bot trong game 0,141 | - |
+| duydong0201 | Phát hiện dữ liệu sinh tự động trong `Logs/v1` | Cần quyết định | 298/338 file có 100% cú chạm ở `ball_y = 305` (vật lý không khớp game). Kết quả các ngày trước trên các tập đó cần đọc lại, xem ADR-013 | - |
+
 ## [2026-10-08]
 
 | Member | Task | Status | Output / Bằng chứng | Time |
