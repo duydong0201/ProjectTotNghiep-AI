@@ -1,0 +1,44 @@
+# played_v1_aligned.yaml voi schema v2 (27 feature, them 6 feature chuoi phoi hop). CHI DOI schema,
+# de do lai ket qua am cua ADR-010 khi da het ro ri nhan (19/10/2026).
+# MODEL MOI sau khi sua loi ro ri nhan (ADR-011): y het played_v1_noweight.yaml (model
+# DANG CHAY trong game), chi them label_shift: 1.
+#
+# Loi: game ghi log SAU khi da ap hanh dong, nen o dong co nhan, nhan vat da vao cooldown,
+# bong da mang quy dao cu danh, nguoi cham cuoi da la minh - model nhin thay dap an. Do tren
+# 40 tran: o dong co hanh dong, can_act = 1 chi 0% (truoc khi sua) so voi 99,9% (sau khi sua).
+#
+# KY VONG: macro-F1 offline GIAM - truoc day bi thoi phong vi ro ri, gio moi la so that.
+# Chi so quyet dinh la hanh vi tai trang thai bot gap (scripts/eval_on_bot_states.py) va
+# 4 chi so trong game. Model cu KHONG bi thay doi - chi thay vao game neu model nay tot hon.
+run_name: played_v2_aligned
+schema: v2
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+agent: player
+targets: [move, action]
+
+# Cung cua so nhu moi config khac de so sanh duoc giua cac run.
+# +/-20 frame quanh luc cham bong: giu ~26% frame nhung giu 100% mau hanh dong.
+frames_around_action: 20
+split:
+  group_by: match
+  dev_mode: kfold
+  n_folds: 5
+  dev_ratio: 0
+  holdout_ratio: 0
+  # KHONG doi salt sau khi da do
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  majority: {}
+  decision_tree:
+    max_depth: 12
+    min_samples_leaf: 10
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+  logreg:
+
+# Ghep nhan o frame k voi trang thai o frame k-1 (luc ra quyet dinh). Xem ADR-011.
+label_shift: 1
