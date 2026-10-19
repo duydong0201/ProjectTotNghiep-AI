@@ -33,7 +33,16 @@ from .policy import (
 )
 from .schema import load_spec
 from .split import HOLDOUT, cv_folds, group_keys, split_by_hash
-from .train import _fit, action_window_mask, as_agent_list, build_rows, load_config, load_data, validate_split_config
+from .train import (
+    _fit,
+    action_window_mask,
+    as_agent_list,
+    build_rows,
+    check_label_shift,
+    load_config,
+    load_data,
+    validate_split_config,
+)
 
 TARGET = "action"
 METHODS = ("argmax / cửa sổ", "argmax / mọi frame", "bot trong game")
@@ -66,6 +75,7 @@ def run(config_path: str, model_name: str | None = None, tolerance: int = 3, sav
     params_model = cfg["models"][model_name] or {}
     params = policy_params(cfg)
     s = validate_split_config(cfg)
+    check_label_shift(cfg, version)
     classes = [str(c) for c in load_spec(version)["labels"][TARGET]["values"]]
 
     df = load_data(cfg["data_dirs"], version, cfg.get("game_versions"))

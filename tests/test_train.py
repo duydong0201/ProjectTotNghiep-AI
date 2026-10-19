@@ -209,6 +209,7 @@ def test_lopo_leaves_out_one_player_per_fold(env):
         schema="v1",
         agent="player",
         split={"group_by": "match", "dev_mode": "lopo", "dev_ratio": 0, "holdout_ratio": 0, "salt": SALT},
+        label_shift=0,
     )
 
     metrics = train_module.run(config)
@@ -457,6 +458,7 @@ def test_run_applies_weights_and_exclude_matches(env, monkeypatch):
         models={"wspy": {}},
         agent_weight={"opponent": 20},
         exclude_matches=["mophong"],
+        label_shift=0,
     )
     train_module.run(cfg)
     # 2 fold CV + 1 lan fit cuoi. Moi lan fit chi thay frame nguoi o san phai, trong so 20.
@@ -516,3 +518,27 @@ def test_without_label_shift_nothing_changes():
     rows, _, y = train_module.build_rows(df, "v1", "player", {})
     assert dict(zip(rows["frame"], y["action"], strict=True))[5] == "Set"
     assert len(rows) == 8
+
+
+# ------------------------------------------------- label_shift bat buoc voi log v1/v2 (ADR-011)
+def test_v1_config_without_label_shift_is_rejected(env):
+    """Truoc day mac dinh la 0: chay lai config cu ra model ro ri nhan ma khong ai biet."""
+    tmp, write_config = env
+    _write_v1(tmp / "data", "m0", "P01", "v1")
+    config = write_config(schema="v1", agent="player")
+    with pytest.raises(ValueError, match="label_shift"):
+        train_module.run(config)
+
+
+def test_label_shift_zero_runs_but_warns(capsys):
+    assert train_module.check_label_shift({"label_shift": 0}, "v1") == 0
+    assert "RÒ RỈ NHÃN" in capsys.readouterr().out
+
+
+def test_label_shift_one_is_silent(capsys):
+    assert train_module.check_label_shift({"label_shift": 1}, "v2") == 1
+    assert capsys.readouterr().out == ""
+
+
+def test_v0_does_not_need_label_shift():
+    assert train_module.check_label_shift({}, "v0") == 0
