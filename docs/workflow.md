@@ -55,6 +55,11 @@ Trong dự án ML có hai loại thay đổi khác nhau về bản chất:
 | `lopo` | hỏi "có tổng quát sang người mới không?" | mỗi fold bỏ ra một người chơi |
 
 So sánh hai model thì chênh lệch phải **lớn hơn độ lệch chuẩn** mới đáng tin.
+
+**Điểm của `train` chưa phải điểm của con bot.** `train` chấm bằng argmax trên các frame quanh
+lúc chạm bóng; game thì dùng ngưỡng, rút thăm và luật chặn ở mọi frame. Model sắp đưa vào game
+phải đo thêm bằng `python -m spike_ai.eval_policy --config <config>` (ADR-013). Đổi hằng số
+trong `AIInputSystem.cpp` thì sửa theo `GAME_POLICY` trong `src/spike_ai/policy.py`.
 Đọc kỹ các dòng `!` trong output: nhóm chiếm quá nửa tập đo, tập đo thiếu lớp, lớp dưới 10 mẫu.
 
 **Kỷ luật holdout** (quan trọng nhất của vòng B):
