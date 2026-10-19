@@ -52,10 +52,13 @@ python -m spike_ai.train --config configs/baseline_v0.yaml
 #    trên MỌI frame của các trận để riêng - con số này mới nói về con bot thật (ADR-013)
 python -m spike_ai.eval_policy --config configs/played_v1_aligned.yaml
 
-# 5) Export model Decision Tree sang header C++ để cắm vào game
+# 5) Đo bot TRONG GAME từ log trận (% điểm thắng, cú đập, đứng yên, bỏ lỡ bóng, Set/Jump, cách mất điểm)
+python -m spike_ai.eval_ingame ../ProjectTotNghiep/Logs/v1/<trận>.csv
+
+# 6) Export model Decision Tree sang header C++ để cắm vào game
 python -m spike_ai.export_cpp --model models/<run>/move__decision_tree.joblib --out exports/
 
-# 6) Kiểm tra trước khi commit
+# 7) Kiểm tra trước khi commit
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
@@ -92,6 +95,7 @@ ProjectTotNghiep-AI/
 │   ├── train.py             #   CLI train
 │   ├── policy.py            #   cách bot ra quyết định trong game, chép từ AIInputSystem.cpp
 │   ├── eval_policy.py       #   CLI đo theo policy đó trên mọi frame
+│   ├── eval_ingame.py       #   CLI đo bot trong game từ log trận (các chỉ số báo cáo)
 │   └── export_cpp.py        #   CLI export model -> header C++ + golden test
 ├── scripts/                 # check.ps1/.sh (quality gate), import log, xem dữ liệu
 ├── models/                  # model đã train (.joblib) — không commit, phát hành qua Releases
