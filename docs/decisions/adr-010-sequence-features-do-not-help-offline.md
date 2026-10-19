@@ -106,3 +106,17 @@ Nút thắt thật **không phải** thiếu feature. Nó là **phân bố trạ
 trong tình huống mà người chơi đã `Set`, nên dù có feature mô tả chuỗi thì cũng không có
 dịp dùng. Cách chữa là thu dữ liệu ở đúng vùng trạng thái đó (DAgger), không phải thêm
 feature nữa.
+
+## Cập nhật 19/10/2026: đo lại sau khi sửa rò rỉ nhãn (ADR-011)
+
+Kết quả âm ở trên đo với `label_shift: 0`, tức model nhìn thấy đáp án. Đo lại với `label_shift: 1`,
+config `played_v2_aligned` giống hệt `played_v1_aligned`, chỉ khác schema:
+
+| | v1 | v2 |
+|---|---|---|
+| macro-F1 `action`, CV 5 fold | 0,438 ± 0,038 | 0,440 ± 0,032 |
+| bot trong game (`eval_policy`) | 0,173 | 0,180 |
+| Set bắt đúng trong ±3 frame | 28,1% | 31,8% |
+
+v2 **không còn tệ hơn** v1 như kết luận cũ, nhưng cũng **không tốt hơn rõ ràng**: chênh lệch nhỏ
+hơn độ lệch chuẩn. Game vẫn dùng v1 (ít feature hơn, không cần cột suy ra).
