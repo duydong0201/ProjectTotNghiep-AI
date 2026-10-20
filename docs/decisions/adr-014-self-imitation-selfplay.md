@@ -70,3 +70,28 @@ những pha thắng nhờ bot luật đánh hỏng. Phụ: model mỗi vòng fit
   SpikeStrong. Trọng số 4 (~40k dòng / 2 vòng ≈ 160k, vẫn ít hơn 295k dòng người chơi).
 - `split.dev_mode: none` - fit trên 100% dữ liệu, không đo offline, ngang hàng model xuất phát.
 
+## Lần chạy 2 (20/10/2026, chế độ `kills`): kém hơn
+
+| Vòng | % điểm thắng | Cú đập trúng / trận | Set / trận | Jump / trận | |
+|---|---|---|---|---|---|
+| xuất phát | 46,4% | 93,9 | 91,6 | 26,5 | |
+| 1 | 42,6% | 84,6 | 96,5 | 26,6 | bỏ |
+| 2 | 44,4% | 90,4 | 99,7 | 29,5 | bỏ |
+| 3 | 42,4% | 85,5 | 94,4 | 26,9 | bỏ, tự dừng |
+
+## Đối chứng: lỗi không nằm ở quy trình
+
+Train lại đúng công thức của vòng tự học (`dev_mode: none`, cùng tham số) nhưng KHÔNG có dữ liệu tự học:
+file model **giống hệt từng byte** model xuất phát và thắng đúng **46,4%** trên cùng 50 trận đo
+(`scratch/selfplay/control.py`). Vậy quy trình train / export / build / đo nhất quán, và mức tụt
+2–4 điểm % ở lần chạy 2 là **do dữ liệu tự học**.
+
+## Kết luận
+
+Bắt chước có chọn lọc (self-imitation) - cả học mọi frame của pha thắng lẫn chỉ học lượt ghi điểm -
+**không làm bot thắng bot luật nhiều hơn** sau 3 vòng mỗi cách; cách `kills` còn làm kém đi. Lý do có
+khả năng nhất: bắt chước không phân biệt hành động TỐT với hành động tình cờ có mặt trong pha thắng, và
+model học từng frame lại áp các hành động đó vào sai trạng thái. Hướng tiếp theo phải khác về bản chất:
+học tăng cường (thưởng/phạt theo kết quả), hoặc quy tắc ghi điểm viết tay làm chuyên gia (hướng B).
+Hạ tầng (MatchRunner, vòng tự động, đo theo seed) dùng lại được cho cả hai hướng.
+
