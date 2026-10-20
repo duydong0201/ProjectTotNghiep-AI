@@ -37,7 +37,7 @@ SIDES = {  # tên agent trong policy.py, tiền tố cột, entity, đội
     "trái": ("player", "p_", 0, 0),
     "phải": ("opponent", "o_", 3, 1),
 }
-CONTROLLER_NAMES = {0: "người", 1: "bot luật", 2: "bot ML"}
+CONTROLLER_NAMES = {0: "người", 1: "bot luật", 2: "bot ML", 3: "chuyên gia"}
 ALIVE = -1
 
 

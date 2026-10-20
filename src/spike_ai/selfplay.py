@@ -46,8 +46,8 @@ def game_paths(sp: dict) -> dict:
     }
 
 
-def run_matches(sp: dict, out_dir: Path, matches: int, seed: int, tag: str) -> str:
-    """Gọi MatchRunner, trả về dòng TONG của nó."""
+def run_matches(sp: dict, out_dir: Path, matches: int, seed: int, tag: str, expert_prob: float = 0.0) -> str:
+    """Gọi MatchRunner, trả về dòng TONG của nó. `expert_prob` > 0: chuyên gia điều khiển một phần lượt (ADR-015)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         str(game_paths(sp)["runner"]),
@@ -56,6 +56,7 @@ def run_matches(sp: dict, out_dir: Path, matches: int, seed: int, tag: str) -> s
         "--max-frames", str(sp.get("max_frames", 54000)),
         "--seed", str(seed),
         "--tag", tag,
+        "--expert-prob", str(expert_prob),
     ]  # fmt: skip
     done = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
     totals = [line for line in done.stdout.splitlines() if line.startswith("TONG")]
@@ -181,7 +182,9 @@ def run(config_path: str, iterations: int | None = None) -> dict:
     for it in range(1, n_iter + 1):
         print(f"\n== Vòng {it}/{n_iter}")
         iter_logs = auto_logs / f"iter_{stamp}_{it:02d}"
-        total = run_matches(sp, iter_logs, sp["matches_per_iteration"], seed_base + it, f"it{it:02d}")
+        total = run_matches(
+            sp, iter_logs, sp["matches_per_iteration"], seed_base + it, f"it{it:02d}", sp.get("expert_prob", 0.0)
+        )
         compress_logs(iter_logs)
         print(f"   tự chơi: {total}")
         cfg_path = train_config(cfg, run_dir, it)

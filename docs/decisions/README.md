@@ -46,3 +46,4 @@ Không cần ADR cho chi tiết nhỏ như tên biến hay một hyperparameter.
 | [012](adr-012-hybrid-model-decides-physics-times-jump.md) | Model quyết định đánh gì, vật lý quyết định lúc nhảy | Proposed - chờ đo trong game |
 | [013](adr-013-evaluate-with-game-policy.md) | Đo model bằng đúng cách bot ra quyết định trong game, trên mọi frame | Accepted |
 | [014](adr-014-self-imitation-selfplay.md) | Vòng tự học tự động: bot ML học từ những pha chính nó thắng | Accepted |
+| [015](adr-015-scoring-expert-dagger.md) | Chuyên gia ghi điểm bằng quy tắc làm người dạy cho DAgger tự động | Accepted |

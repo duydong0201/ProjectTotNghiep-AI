@@ -253,6 +253,14 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
     window = cfg.get("frames_around_action")
     controllers = load_spec(version).get("enums", {}).get("Controller", {})
     human_code, ml_code = controllers.get("human", 0), controllers.get("ml_bot", 2)
+    # Ai được coi là "người dạy" (nhãn đáng học). Mặc định chỉ người chơi; vòng tự học hướng B thêm
+    # "expert" = chuyên gia ghi điểm điều khiển sân bot ML trong MatchRunner (ADR-015).
+    teacher_names = cfg.get("train_on_controllers") or ["human"]
+    unknown = [n for n in teacher_names if n not in controllers and n != "human"]
+    if unknown:
+        raise ValueError(f"train_on_controllers có giá trị lạ {unknown}; có: {sorted(controllers)}")
+    teacher_codes = [controllers.get(n, human_code) for n in teacher_names]
+    controller_weight = {controllers[n]: float(w) for n, w in (cfg.get("controller_weight") or {}).items()}
     si = cfg.get("self_imitation")
     if si and si.get("agent") not in agents:
         raise ValueError(f"self_imitation.agent = {si.get('agent')} phai nam trong agent = {agents}")
@@ -285,8 +293,8 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
 
         self_rows = np.zeros(len(df), dtype=bool)
         if only_human and controller is not None:
-            human = (controller == human_code).to_numpy()
-            notes.append(f"nguoi dieu khien {human.sum():,}")
+            human = controller.isin(teacher_codes).to_numpy()
+            notes.append(f"{'+'.join(teacher_names)} dieu khien {human.sum():,}")
             allowed = human
             if si and agent == si["agent"]:
                 # TU HOC (self-imitation): them frame cua CHINH bot ML trong cac tran tu sinh
@@ -312,6 +320,10 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
 
         print(f"  agent={agent}: giu {keep.sum():,}/{len(df):,} frame ({', '.join(notes) or 'khong loc'})")
         weight = np.full(len(df), float(weights.get(agent, 1.0)))
+        if controller is not None:
+            # Trọng số theo người dạy (vd chuyên gia), ghi đè agent_weight cho đúng các dòng đó.
+            for code, w in controller_weight.items():
+                weight[(controller == code).to_numpy()] = w
         if si and agent == si["agent"]:
             # Trong so RIENG cho dong tu hoc, khong nhan voi agent_weight (agent_weight cua san phai
             # danh cho frame nguoi gianh quyen DAgger, vd x20).
@@ -338,7 +350,9 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
 
 def uses_weights(cfg: dict) -> bool:
     """Config co dat trong so tung dong khong (agent_weight hoac self_imitation.weight)."""
-    return bool(cfg.get("agent_weight") or (cfg.get("self_imitation") or {}).get("weight"))
+    return bool(
+        cfg.get("agent_weight") or cfg.get("controller_weight") or (cfg.get("self_imitation") or {}).get("weight")
+    )
 
 
 def _fit(name, seed, params, X, y, w):

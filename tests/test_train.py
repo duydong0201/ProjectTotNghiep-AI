@@ -635,3 +635,31 @@ def test_dev_mode_none_fits_on_everything_without_offline_metrics(env):
     metrics = train_module.run(config)
     assert metrics == {}
     assert _SpyModel.fitted_rows == [4 * FRAMES]
+
+
+# ------------------------------------------------- hoc tu chuyen gia (train_on_controllers, ADR-015)
+EXPERT = 3
+
+
+def test_train_on_expert_frames_with_their_own_weight():
+    df = _dagger_log(n=12, match_id="auto_e", p_ctrl=RULE_BOT, o_ctrl=[ML_BOT] * 4 + [EXPERT] * 6 + [HUMAN] * 2)
+    cfg = {
+        "train_on_controllers": ["human", "expert"],
+        "agent_weight": {"opponent": 20},
+        "controller_weight": {"expert": 2},
+    }
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], cfg)
+    w = dict(zip(rows["frame"], rows["_weight"], strict=True))
+    assert sorted(w) == list(range(4, 12))  # bo frame bot ML va toan bo san trai (bot luat)
+    assert w[4] == 2.0 and w[10] == 20.0
+
+
+def test_default_still_learns_only_from_humans():
+    df = _dagger_log(n=6, p_ctrl=RULE_BOT, o_ctrl=[EXPERT] * 3 + [HUMAN] * 3)
+    rows, _, _ = train_module.build_rows(df, "v1", ["opponent"], {})
+    assert sorted(rows["frame"]) == [3, 4, 5]
+
+
+def test_unknown_teacher_is_rejected():
+    with pytest.raises(ValueError, match="train_on_controllers"):
+        train_module.build_rows(_dagger_log(), "v1", "player", {"train_on_controllers": ["than_thanh"]})

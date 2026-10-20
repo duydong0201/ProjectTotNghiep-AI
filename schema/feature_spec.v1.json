@@ -21,7 +21,7 @@
     "BallStateFrame": {"Alive": -1, "Reset": 0},
     "BallCollisionState": {"None": 0, "NetTop": 1, "NetMiddle": 2, "NetBottom": 3},
     "TrajectoryType": {"Linear": 0, "Parabolic": 1},
-    "Controller": {"human": 0, "rule_bot": 1, "ml_bot": 2}
+    "Controller": {"human": 0, "rule_bot": 1, "ml_bot": 2, "expert": 3}
   },
   "raw_columns": [
     {"name": "schema_version",        "type": "int",   "source": "hằng số = 1"},

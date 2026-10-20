@@ -31,7 +31,7 @@ def fake_game(tmp_path, monkeypatch):
     monkeypatch.setattr(selfplay, "REPORTS_DIR", tmp_path)
     (tmp_path / "experiments.md").write_text("", encoding="utf-8")
     monkeypatch.setattr(selfplay, "build_runner", lambda sp: None)
-    monkeypatch.setattr(selfplay, "run_matches", lambda sp, out, n, seed, tag: "TONG: gia")
+    monkeypatch.setattr(selfplay, "run_matches", lambda sp, out, n, seed, tag, expert_prob=0.0: "TONG: gia")
 
     def fake_train(config_path, run_name):
         return Path(config_path).with_suffix(".joblib")
@@ -109,7 +109,7 @@ def test_compressed_logs_are_read_like_plain_csv(tmp_path):
 def test_eval_logs_are_deleted_after_scoring(tmp_path, monkeypatch):
     eval_dir = tmp_path / "eval" / "iter01"
 
-    def fake_run(sp, out, n, seed, tag):
+    def fake_run(sp, out, n, seed, tag, expert_prob=0.0):
         out.mkdir(parents=True)
         (out / "m.csv").write_text("x", encoding="utf-8")
         return "TONG"
@@ -150,3 +150,26 @@ def test_stops_after_consecutive_rejections(fake_game, monkeypatch):
     _scores(monkeypatch, [40.0, 39.0, 38.0, 99.0])  # 2 vong bi bo -> dung, khong chay vong 3
     out = selfplay.run(str(cfg), iterations=5)
     assert [h["iteration"] for h in out["history"]] == [0, 1, 2]
+
+
+def test_expert_plays_only_in_selfplay_never_in_evaluation(fake_game, monkeypatch):
+    """Chuyên gia chỉ điều khiển lúc TỰ CHƠI (sinh nhãn); lúc ĐO phải là bot ML thuần."""
+    game, cfg = fake_game
+    data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    data["selfplay"]["expert_prob"] = 0.5
+    cfg.write_text(yaml.safe_dump(data), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(
+        selfplay,
+        "run_matches",
+        lambda sp, out, n, seed, tag, expert_prob=0.0: calls.append((tag, expert_prob)) or "TONG",
+    )
+
+    def fake_score(sp, d):
+        selfplay.run_matches(sp, d, 1, 1, "eval")  # như score_ml thật: đo không truyền expert_prob
+        return {"pct_diem_thang": 40.0}
+
+    monkeypatch.setattr(selfplay, "score_ml", fake_score)
+    selfplay.run(str(cfg), iterations=1)
+    assert ("it01", 0.5) in calls
+    assert all(p == 0.0 for tag, p in calls if tag == "eval")
