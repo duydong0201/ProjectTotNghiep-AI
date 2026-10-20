@@ -1,12 +1,18 @@
 """Đo lại các model trên một BỘ TRẬN ĐO MỚI (seed chưa từng dùng để chọn model).
 
-Vì sao: vòng tự học chọn model cao nhất trên cùng một bộ 50 trận đo (seed 100000), nên con số của model
-được chọn bị thổi phồng (vừa tốt vừa gặp may với đúng bộ đó). Đo trên seed khác cho con số thật.
+Vì sao: vòng tự học chọn model cao nhất trên một bộ trận đo, nên con số của model được chọn bị thổi
+phồng (vừa tốt vừa gặp may với đúng bộ đó). Đo trên seed khác cho con số thật (ADR-015).
 
-Cách dùng (sửa danh sách MODELS cho đúng đường dẫn):
-    python scripts/eval_fresh_seeds.py
+Cách dùng:
+    python scripts/eval_fresh_seeds.py --seed 400000 \\
+        --model "xuat phat=game:6e318b8" \\
+        --model "v3=models/selfplay_expert_v3_.../best/spike_ai_action_random_forest.h"
+
+`--model ten=duong_dan` (file .h) hoặc `ten=game:<commit>` (lấy file model ở commit đó của repo game).
+Mỗi model đo với hai luật nhảy: 31,4% (mặc định của game) và luôn nhảy sau Set.
 """
 
+import argparse
 import shutil
 import subprocess
 import sys
@@ -17,47 +23,53 @@ from spike_ai import selfplay  # noqa: E402
 from spike_ai import train as train_module  # noqa: E402
 
 SCRATCH = Path("scratch/fresh_eval")  # trong .gitignore
-SCRATCH.mkdir(parents=True, exist_ok=True)
 GAME = Path("F:/DoAnTotNghiep/ProjectTotNghiep")
-START_COMMIT = "6e318b8"  # commit game chua model dagger_v1_w_aligned (truoc khi tu hoc)
-start_header = SCRATCH / "model_start.h"
-if not start_header.exists():
-    blob = subprocess.run(
-        ["git", "-C", str(GAME), "show", f"{START_COMMIT}:Source/AI/Generated/spike_ai_action_random_forest.h"],
-        capture_output=True,
-        check=True,
-    ).stdout
-    start_header.write_bytes(blob)
-
-MODELS = {
-    "xuat phat (dagger_v1_w_aligned)": start_header,
-    "tot nhat v1 (dang o game chinh)": Path(
-        "models/selfplay_expert_v1_20261020-123720/best/spike_ai_action_random_forest.h"
-    ),
-    "v2 vong 3 (69,2% tren seed cu)": Path(
-        "models/selfplay_expert_v2_20261020-142907/iter03/spike_ai_action_random_forest.h"
-    ),
-}
+GAME_MODEL = "Source/AI/Generated/spike_ai_action_random_forest.h"
 JUMP = {"nhay 31,4%": [], "luon nhay": ["--jump-after-set", "1.0"]}
-SEED, MATCHES = 200000, 50
 
-sp = train_module.load_config("configs/selfplay_expert_v1.yaml")["selfplay"]
-sp = {**sp, "eval_seed": SEED, "eval_matches": MATCHES}
-keep = selfplay.game_paths(sp)["auto_header"]
-backup = SCRATCH / "auto_header_backup.h"
-shutil.copyfile(keep, backup)
-rows = []
-try:
-    for name, header in MODELS.items():
-        selfplay.install_header(header, sp)
+
+def resolve_model(spec: str, name: str) -> Path:
+    if not spec.startswith("game:"):
+        return Path(spec)
+    out = SCRATCH / f"model_{name}.h"
+    blob = subprocess.run(
+        ["git", "-C", str(GAME), "show", f"{spec[5:]}:{GAME_MODEL}"], capture_output=True, check=True
+    ).stdout
+    out.write_bytes(blob)
+    return out
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--matches", type=int, default=50)
+    parser.add_argument("--model", action="append", required=True, help="ten=duong_dan hoac ten=game:<commit>")
+    args = parser.parse_args()
+
+    SCRATCH.mkdir(parents=True, exist_ok=True)
+    models = {}
+    for item in args.model:
+        name, spec = item.split("=", 1)
+        models[name] = resolve_model(spec, name.replace(" ", "_"))
+
+    sp = train_module.load_config("configs/selfplay_expert_v1.yaml")["selfplay"]
+    sp = {**sp, "eval_seed": args.seed, "eval_matches": args.matches}
+    keep = selfplay.game_paths(sp)["auto_header"]
+    backup = SCRATCH / "auto_header_backup.h"
+    shutil.copyfile(keep, backup)
+    try:
+        for name, header in models.items():
+            selfplay.install_header(header, sp)
+            selfplay.build_runner(sp)
+            for jname, extra in JUMP.items():
+                r = selfplay.score_ml({**sp, "runner_args": extra}, SCRATCH / "eval")
+                pct, won, lost = r["pct_diem_thang"], r["diem_thang"], r["diem_mat"]
+                print(f"{name:<24} {jname:<11} {pct:5.1f}%  ({won}-{lost})", flush=True)
+    finally:
+        selfplay.install_header(backup, sp)
         selfplay.build_runner(sp)
-        for jname, args in JUMP.items():
-            r = selfplay.score_ml({**sp, "runner_args": args}, SCRATCH / "eval")
-            rows.append((name, jname, r))
-            print(
-                f"{name:<34} {jname:<11} {r['pct_diem_thang']:5.1f}%  ({r['diem_thang']}-{r['diem_mat']})", flush=True
-            )
-finally:
-    selfplay.install_header(backup, sp)
-    selfplay.build_runner(sp)
-    print("da tra GeneratedAuto ve nhu cu")
+        print("da tra GeneratedAuto ve nhu cu")
+
+
+if __name__ == "__main__":
+    main()

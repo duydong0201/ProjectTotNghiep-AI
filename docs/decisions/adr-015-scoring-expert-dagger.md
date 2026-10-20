@@ -98,3 +98,28 @@ mốc 71,7% -> bỏ cả 3, tự dừng.
 **Cần sửa quy trình:** chọn model trên một bộ seed, xác nhận trên bộ seed khác trước khi giữ
 (`scripts/eval_fresh_seeds.py` đo lại trên seed mới).
 
+## Lần chạy v3 (21/10/2026): xác nhận hai bước, luôn nhảy
+
+`selfplay_expert_v3`: model mới phải thắng trên bộ đo chính (seed 300000) RỒI thắng tiếp trên bộ xác nhận
+(seed 500000) mới được giữ. Bộ đo chính KHÔNG dùng seed 100000 nữa: model xuất phát đã được chọn trên
+100000 nên con số ở đó bị thổi phồng (71,7% so với 67,0% trên 300000) - lần chạy đầu với 100000 bỏ gần
+như mọi model mới, kể cả model thật ra tốt hơn.
+
+| Vòng | bộ chính (300000) | bộ xác nhận (500000) | |
+|---|---|---|---|
+| xuất phát | 67,0% | 69,1% | |
+| 1 | **71,2%** | **73,1%** | giữ |
+| 2 | 67,6% | - | bỏ |
+| 3 | 70,3% | - | bỏ |
+| 4 | 70,2% | - | bỏ, tự dừng |
+
+**Bộ trận để dành (seed 400000)**, không dùng để chọn gì (`scripts/eval_fresh_seeds.py`):
+
+| Model | nhảy 31,4% | luôn nhảy |
+|---|---|---|
+| model đang ở game chính (tốt nhất v1) | 48,3% | 66,3% |
+| v3 vòng 1 | **50,1%** | **69,4%** |
+
+Model v3 tốt hơn trên cả 3 bộ trận độc lập (+4,2 / +4,0 / +3,1 điểm % khi luôn nhảy). Mức tăng thật cỡ
+3-4 điểm %: nhỏ nhưng nhất quán. Model: `models/selfplay_expert_v3_20261020-225201/best/`.
+
