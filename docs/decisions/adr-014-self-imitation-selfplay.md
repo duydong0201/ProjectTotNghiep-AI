@@ -48,3 +48,25 @@ Người dùng chọn **A** (20/10/2026).
   model học bắt chước hành vi tổng hợp đó.
 - Đo bằng 20 trận / model: độ nhiễu của % điểm thắng cỡ vài điểm phần trăm, nên chênh nhỏ chưa chắc
   là thật (`min_gain` để chặn).
+
+## Lần chạy 1 (20/10/2026, chế độ `won_rallies`): không tiến bộ
+
+50 trận tự chơi + 50 trận đo mỗi vòng, học MỌI frame của pha bóng bot ML thắng:
+
+| Vòng | % điểm thắng | Set / trận | Jump / trận | Chuỗi Set→Jump→Spike | |
+|---|---|---|---|---|---|
+| xuất phát | 46,4% | 91,6 | 26,5 | 1.292 | |
+| 1 | 45,8% | 99,4 | 27,8 | 1.292 | bỏ |
+| 2 | 43,4% | 106,9 | 30,9 | 1.445 | bỏ |
+| 3 | 46,0% | 114,1 | 31,3 | 1.459 | bỏ, tự dừng |
+
+Bot **đổi cách chơi** (Set, Jump, chuỗi tăng dần) nhưng **không thắng nhiều hơn**. Lý do chính: học cả
+những pha thắng nhờ bot luật đánh hỏng. Phụ: model mỗi vòng fit trên 90% dữ liệu, model xuất phát 100%.
+
+## Sửa (20/10/2026)
+
+- `self_imitation.mode: kills` - chỉ học **lượt cầm bóng cuối** của những pha bot ML **tự ghi điểm bằng
+  cú đập** (`train.kill_possession_mask`). Còn ~7% số frame của pha thắng; nhãn chủ yếu Set / Jump /
+  SpikeStrong. Trọng số 4 (~40k dòng / 2 vòng ≈ 160k, vẫn ít hơn 295k dòng người chơi).
+- `split.dev_mode: none` - fit trên 100% dữ liệu, không đo offline, ngang hàng model xuất phát.
+

@@ -591,3 +591,47 @@ def test_self_imitation_agent_must_be_trained():
         train_module.build_rows(
             _selfplay_log(), "v1", "player", {"self_imitation": {"agent": "opponent", "player_id": "X"}}
         )
+
+
+def _kill_log():
+    """1 pha bong: bot luat giao (frame 2), bot ML Set (5) roi dap (9) va thang diem."""
+    df = _dagger_log(n=20, match_id="auto_k", p_ctrl=RULE_BOT, o_ctrl=ML_BOT)
+    df["o_player_id"] = "MLAUTO"
+    df["rally_last_touch"] = 8
+    df["ball_state_frame"] = 50
+    df.loc[0:11, "ball_state_frame"] = -1
+    df.loc[2:, ["rally_last_touch", "rally_touch_count"]] = [0, 1]
+    df.loc[5:, ["rally_last_touch", "rally_touch_count"]] = [3, 1]
+    df.loc[9:, ["rally_last_touch", "rally_touch_count"]] = [3, 2]
+    df["rally_last_touch_kind"] = 0
+    df.loc[2:, "rally_last_touch_kind"] = 4  # Serve
+    df.loc[5:, "rally_last_touch_kind"] = 6  # Set
+    df.loc[9:, "rally_last_touch_kind"] = 8  # SpikeMedium
+    df.loc[13:, "score_right"] = 1
+    return df
+
+
+def test_kill_possession_keeps_only_the_scoring_possession():
+    m = train_module.kill_possession_mask(_kill_log(), "opponent")
+    assert np.flatnonzero(m).tolist() == list(range(3, 10))  # sau cu cham cuoi cua doi thu -> cu dap
+
+
+def test_won_rally_without_own_spike_is_not_a_kill():
+    df = _kill_log()
+    df.loc[9:, "rally_last_touch_kind"] = 6  # cham cuoi la Set chu khong phai dap (diem do doi thu hong)
+    assert not train_module.kill_possession_mask(df, "opponent").any()
+
+
+def test_dev_mode_none_fits_on_everything_without_offline_metrics(env):
+    tmp, write_config = env
+    for i in range(4):
+        _write_v1(tmp / "data", f"m{i}", "P01", "v1")
+    config = write_config(
+        schema="v1",
+        agent="player",
+        label_shift=0,
+        split={"group_by": "match", "dev_mode": "none", "dev_ratio": 0, "holdout_ratio": 0, "salt": SALT},
+    )
+    metrics = train_module.run(config)
+    assert metrics == {}
+    assert _SpyModel.fitted_rows == [4 * FRAMES]

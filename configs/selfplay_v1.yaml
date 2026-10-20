@@ -20,15 +20,17 @@ agent_weight:
 self_imitation:
   agent: opponent
   player_id: MLAUTO
-  only_won_rallies: true
-  weight: 0.5               # 2 vong x 50 tran ~ 400k dong x 0,5 ~ 200k, it hon 295k dong nguoi choi
+  # kills: chi hoc luot cam bong cuoi cua nhung pha bot ML TU GHI DIEM bang cu dap (20/10/2026);
+  # won_rallies (cach cu): ca pha bong thang, ke ca thang vi doi thu danh hong -> 3 vong khong tien bo.
+  mode: kills
+  weight: 4.0               # 'kills' ~20k dong / 50 tran; 2 vong ~40k x 4 ~ 160k, van it hon 295k dong nguoi choi
 
-# Moi vong chi fit MOT lan cho nhanh: chia 90/10 theo tran (khong CV). Quyet dinh giu hay bo model
+# Moi vong chi fit MOT lan tren 100% du lieu (dev_mode: none), ngang hang model xuat phat. Quyet dinh giu hay bo model
 # dua tren do trong game (bot ML vs bot luat), khong dua tren diem offline.
 split:
   group_by: match
-  dev_mode: single
-  dev_ratio: 0.1
+  dev_mode: none
+  dev_ratio: 0
   holdout_ratio: 0
   salt: spike-ai-split-v1
 seed: 42

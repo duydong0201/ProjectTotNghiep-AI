@@ -60,7 +60,7 @@ from .split import (
 )
 
 N_GOLDEN = 20  # số vector mẫu dùng để kiểm tra C++ ra cùng kết quả với Python
-DEV_MODES = ("single", "kfold", "lopo")
+DEV_MODES = ("single", "kfold", "lopo", "none")
 
 
 def load_config(path) -> dict:
@@ -152,6 +152,51 @@ AGENT_TEAM = {"player": 0, "opponent": 1}  # Team::LEFT / RIGHT
 BALL_ALIVE = -1
 # Sau khi bong chet, diem duoc cong trong vong ngan nay frame (dem nguoc 50 -> 0 roi reset).
 SCORE_LOOKAHEAD = 200
+
+
+SPIKE_KINDS = (2, 7, 8, 9)  # ActionState: Spike, SpikeLight, SpikeMedium, SpikeStrong
+AGENT_ENTITY = {"player": 0, "opponent": 3}
+
+
+def kill_possession_mask(df: pd.DataFrame, agent: str) -> np.ndarray:
+    """Frame thuộc LƯỢT CẦM BÓNG CUỐI của `agent` trong những pha nó TỰ GHI ĐIỂM bằng cú đập.
+
+    "Tự ghi điểm" = đội của agent thắng pha bóng VÀ cú chạm cuối cùng của pha là cú đập của chính
+    agent - không tính điểm thắng vì đối thủ đánh hỏng. "Lượt cầm bóng cuối" = từ ngay sau cú chạm
+    cuối của đối thủ (hoặc đầu pha bóng nếu đối thủ chưa chạm) tới frame cú đập đó. Đây là chuỗi
+    hành động thật sự tạo ra điểm (vd nhận bóng -> Set -> Jump -> Spike), phần còn lại của pha bóng
+    không gắn trực tiếp với điểm nên không học (ADR-014).
+    """
+    from .data import ENTITY_NONE, rebuild_kind_v1_to_v2
+
+    me = AGENT_ENTITY[agent]
+    won = won_rally_mask(df, AGENT_TEAM[agent])
+    out = np.zeros(len(df), dtype=bool)
+    for positions in df.groupby("match_id", sort=False).indices.values():
+        g = df.iloc[positions]
+        lt = g["rally_last_touch"].fillna(ENTITY_NONE).astype(int).to_numpy()
+        tc = g["rally_touch_count"].fillna(0).astype(int).to_numpy()
+        kind = (
+            g["rally_last_touch_kind"].fillna(0).astype(int).to_numpy()
+            if "rally_last_touch_kind" in g
+            else rebuild_kind_v1_to_v2(g).to_numpy()
+        )
+        touch = np.r_[False, (lt[1:] != lt[:-1]) | (tc[1:] != tc[:-1])] & (lt != ENTITY_NONE)
+        alive = (g["ball_state_frame"].to_numpy() == BALL_ALIVE).astype(int)
+        edges = np.flatnonzero(np.diff(np.r_[0, alive, 0]))
+        for start, end in zip(edges[::2], edges[1::2], strict=True):
+            if not won[positions[start]]:
+                continue
+            touches = start + np.flatnonzero(touch[start:end])
+            if not len(touches):
+                continue
+            last = touches[-1]
+            if lt[last] != me or kind[last] not in SPIKE_KINDS:
+                continue  # điểm thắng không đến từ cú đập của chính agent
+            theirs = touches[lt[touches] != me]
+            begin = theirs[-1] + 1 if len(theirs) else start
+            out[positions[begin : last + 1]] = True
+    return out
 
 
 def won_rally_mask(df: pd.DataFrame, team: int) -> np.ndarray:
@@ -249,8 +294,13 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
                 # phia no thang diem. Log nguoi vs bot cu co player_id khac nen khong bi lan vao.
                 pid = df[f"{CONTROLLER_PREFIX[agent]}player_id"].astype(str).to_numpy() == str(si["player_id"])
                 self_rows = pid & (controller == ml_code).to_numpy()
-                if si.get("only_won_rallies", True):
+                mode = si.get("mode", "won_rallies" if si.get("only_won_rallies", True) else "all")
+                if mode == "kills":
+                    self_rows &= kill_possession_mask(df, agent)
+                elif mode == "won_rallies":
                     self_rows &= won_rally_mask(df, AGENT_TEAM[agent])
+                elif mode != "all":
+                    raise ValueError(f"self_imitation.mode = {mode}; chỉ có kills / won_rallies / all")
                 notes.append(f"tu hoc {self_rows.sum():,}")
                 allowed = human | self_rows
             keep &= allowed
@@ -364,7 +414,17 @@ def run(config_path: str, final: bool = False) -> dict:
         for name, params in cfg["models"].items():
             key = f"{target}__{name}"
 
-            if s["dev_mode"] == "single":
+            if s["dev_mode"] == "none":
+                # Chỉ fit trên TOÀN BỘ dữ liệu không thuộc holdout, không đo offline. Dùng khi việc chấm
+                # điểm làm ở chỗ khác (vòng tự học đo trong game) và model phải được train ngang hàng
+                # với model đem so (vd model xuất phát fit trên 100% dữ liệu).
+                fit_idx = np.union1d(keep[TRAIN], keep[DEV])
+                model = _fit(
+                    name, seed, params, X.iloc[fit_idx], y[target].iloc[fit_idx], None if W is None else W[fit_idx]
+                )
+                eval_name, golden, m = "none", X.iloc[fit_idx].head(N_GOLDEN), None
+                print(f"  [fit    ] {key:<32} fit trên {len(fit_idx):,} dòng, không đo offline (dev_mode: none)")
+            elif s["dev_mode"] == "single":
                 fit_idx = keep[TRAIN]
                 model = _fit(
                     name, seed, params, X.iloc[fit_idx], y[target].iloc[fit_idx], None if W is None else W[fit_idx]
@@ -384,10 +444,11 @@ def run(config_path: str, final: bool = False) -> dict:
                 golden = X.iloc[fit_idx].head(N_GOLDEN)
                 n_train, n_eval = len(fit_idx), len(fit_idx)
 
-            all_metrics[f"{eval_name}/{key}"] = m
-            plot_confusion_matrix(m, f"{eval_name}: {key}", out_dir / f"cm_{eval_name}_{key}.png")
-            log_rows.append((eval_name, target, name, n_train, n_eval, m))
-            _print_result(eval_name, key, m)
+            if m is not None:
+                all_metrics[f"{eval_name}/{key}"] = m
+                plot_confusion_matrix(m, f"{eval_name}: {key}", out_dir / f"cm_{eval_name}_{key}.png")
+                log_rows.append((eval_name, target, name, n_train, n_eval, m))
+                _print_result(eval_name, key, m)
 
             if holdout is not None:
                 X_h, y_h = holdout
