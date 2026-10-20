@@ -74,3 +74,27 @@ bằng ~30% số Set (38 / 125 mỗi trận). Model có học tốt mấy cũng 
 
 Model tốt nhất: `models/selfplay_expert_v1_20261020-123720/best/` (train ở vòng 5). Chưa đưa vào game chính.
 
+## Nút thắt là luật nhảy (20/10/2026)
+
+Cùng model tốt nhất v1, chỉ đổi luật nhảy (MatchRunner `--jump-after-set`, `--model-may-jump`), 50 trận seed 100000:
+nhảy sau Set 31,4% -> 51,0%; 60% -> 60,5%; **100% -> 71,7%**; để model tự quyết nhảy -> 35,9% (nhảy nhiều mà sai lúc).
+
+Lần chạy v2 (`selfplay_expert_v2`, luôn nhảy cả lúc tự chơi lẫn lúc đo): 3 vòng 65,8 / 66,7 / 69,2% so với
+mốc 71,7% -> bỏ cả 3, tự dừng.
+
+## Đo lại trên bộ trận MỚI (seed 200000) - con số không thiên lệch
+
+| Model | nhảy 31,4% | luôn nhảy |
+|---|---|---|
+| xuất phát (dagger_v1_w_aligned) | 46,4% | 60,0% |
+| tốt nhất v1 (đang ở game chính) | 49,7% | 69,3% |
+| v2 vòng 3 (bị bỏ, 69,2% trên seed cũ) | 49,2% | 72,3% |
+
+- Tự học theo chuyên gia giúp thật: +3,3 điểm % (nhảy 31,4%), +9,3 điểm % (luôn nhảy) trên trận chưa từng dùng.
+- 51,0% của model tốt nhất v1 bị thổi phồng (49,7% trên seed mới): chọn model cao nhất trên CÙNG một bộ đo
+  thì con số được chọn lệch lên. Model v2 vòng 3 bị bỏ oan (72,3% so với 69,3%, chênh nằm trong độ nhiễu).
+- Luật nhảy đóng góp nhiều nhất (+14-23 điểm %).
+
+**Cần sửa quy trình:** chọn model trên một bộ seed, xác nhận trên bộ seed khác trước khi giữ
+(`scripts/eval_fresh_seeds.py` đo lại trên seed mới).
+
