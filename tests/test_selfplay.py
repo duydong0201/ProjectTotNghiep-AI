@@ -185,3 +185,15 @@ def test_runner_args_are_passed_to_every_call(tmp_path, monkeypatch):
     sp = {"game_dir": str(tmp_path), "runner_args": ["--jump-after-set", "1.0"]}
     assert selfplay.run_matches(sp, tmp_path / "out", 2, 7, "t").startswith("TONG")
     assert seen[0][-2:] == ["--jump-after-set", "1.0"]
+
+
+def test_confirm_set_can_veto_a_lucky_model(fake_game, monkeypatch):
+    """Model mới thắng trên bộ đo chính nhưng thua trên bộ xác nhận -> không giữ."""
+    game, cfg = fake_game
+    data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    data["selfplay"]["confirm_seed"] = 300000
+    cfg.write_text(yaml.safe_dump(data), encoding="utf-8")
+    # thứ tự gọi: xuất phát (chính, xác nhận), vòng 1 (chính, xác nhận), vòng 2 (chính, xác nhận)
+    _scores(monkeypatch, [40.0, 40.0, 45.0, 38.0, 46.0, 41.0])
+    out = selfplay.run(str(cfg), iterations=2)
+    assert [h["kept"] for h in out["history"]] == [True, False, True]

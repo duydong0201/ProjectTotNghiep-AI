@@ -174,7 +174,13 @@ def run(config_path: str, iterations: int | None = None) -> dict:
     build_runner(sp)
     best = score_ml(sp, run_dir / "eval" / "start")
     print(f"   bot ML thắng {best['pct_diem_thang']:.1f}% điểm")
-    history = [{"iteration": 0, "model": "xuat phat", "eval": best, "kept": True}]
+    # Bộ trận XÁC NHẬN (confirm_seed): chọn model trên bộ đo chính (eval_seed) rồi kiểm lại trên bộ này,
+    # vì chọn cái cao nhất trên CÙNG một bộ đo thì con số được chọn bị thổi phồng (ADR-015).
+    confirm_sp = {**sp, "eval_seed": sp["confirm_seed"]} if sp.get("confirm_seed") is not None else None
+    best_confirm = score_ml(confirm_sp, run_dir / "eval" / "start_confirm") if confirm_sp else None
+    if best_confirm:
+        print(f"   bộ xác nhận: {best_confirm['pct_diem_thang']:.1f}% điểm")
+    history = [{"iteration": 0, "model": "xuat phat", "eval": best, "confirm": best_confirm, "kept": True}]
 
     # Seed tự chơi khác nhau giữa CÁC LẦN chạy (cùng model + cùng seed = đúng các trận cũ).
     # Seed đo (eval_seed) thì giữ cố định để mọi model đấu cùng một bộ trận.
@@ -196,16 +202,32 @@ def run(config_path: str, iterations: int | None = None) -> dict:
         build_runner(sp)
         cand = score_ml(sp, run_dir / "eval" / f"iter{it:02d}")
         kept = decide(best["pct_diem_thang"], cand["pct_diem_thang"], float(sp.get("min_gain", 0.0)))
+        cand_confirm = None
+        if kept and confirm_sp:
+            cand_confirm = score_ml(confirm_sp, run_dir / "eval" / f"iter{it:02d}_confirm")
+            kept = cand_confirm["pct_diem_thang"] >= best_confirm["pct_diem_thang"]
+            new_pct, old_pct = cand_confirm["pct_diem_thang"], best_confirm["pct_diem_thang"]
+            print(f"   bộ xác nhận: {new_pct:.1f}% (đang giữ {old_pct:.1f}%)")
         print(f"   model mới thắng {cand['pct_diem_thang']:.1f}% điểm (đang giữ {best['pct_diem_thang']:.1f}%) -> "
               f"{'GIỮ' if kept else 'BỎ'}")  # fmt: skip
         if kept:
             best = cand
+            best_confirm = cand_confirm
             shutil.copyfile(header, best_dir / HEADER_NAME)
             (best_dir / "model.txt").write_text(str(model), encoding="utf-8")
         else:
             install_header(best_dir / HEADER_NAME, sp)
             build_runner(sp)
-        history.append({"iteration": it, "model": str(model), "self_play": total, "eval": cand, "kept": kept})
+        history.append(
+            {
+                "iteration": it,
+                "model": str(model),
+                "self_play": total,
+                "eval": cand,
+                "confirm": cand_confirm,
+                "kept": kept,
+            }
+        )
         (run_dir / "history.json").write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
         rejected_in_a_row = 0 if kept else rejected_in_a_row + 1
         if stop_after and rejected_in_a_row >= stop_after:
