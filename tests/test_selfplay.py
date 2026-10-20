@@ -197,3 +197,11 @@ def test_confirm_set_can_veto_a_lucky_model(fake_game, monkeypatch):
     _scores(monkeypatch, [40.0, 40.0, 45.0, 38.0, 46.0, 41.0])
     out = selfplay.run(str(cfg), iterations=2)
     assert [h["kept"] for h in out["history"]] == [True, False, True]
+
+
+def test_recent_selfplay_dirs_ignores_the_live_viewing_folder(tmp_path):
+    """Lỗi 21/10: 'xem_truc_tiep' xếp sau 'iter_*' theo tên nên bị lấy làm vòng mới nhất,
+    kéo log trận đang xem (ghi dở, có NaN) vào train."""
+    for name in ("iter_A_01", "iter_A_02", "xem_truc_tiep"):
+        (tmp_path / name).mkdir()
+    assert [p.name for p in selfplay.recent_selfplay_dirs(tmp_path, 2)] == ["iter_A_01", "iter_A_02"]

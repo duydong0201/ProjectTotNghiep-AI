@@ -99,7 +99,9 @@ def install_header(header: Path, sp: dict) -> None:
 # ------------------------------------------------------------------ train và đo
 def recent_selfplay_dirs(auto_logs: Path, keep: int) -> list[Path]:
     """`keep` thư mục vòng tự chơi gần nhất (tên có thời gian chạy + số vòng nên sắp theo tên là đúng thứ tự)."""
-    folders = sorted(p for p in auto_logs.iterdir() if p.is_dir()) if auto_logs.exists() else []
+    # CHỈ thư mục vòng tự chơi (iter_*). Thư mục khác trong Logs/auto, vd xem_truc_tiep (run_botvsbot.bat),
+    # không phải dữ liệu tự học - và file của trận đang xem có thể đang ghi dở.
+    folders = sorted(p for p in auto_logs.glob("iter_*") if p.is_dir()) if auto_logs.exists() else []
     return folders[-keep:] if keep > 0 else folders
 
 
