@@ -1,4 +1,7 @@
-"""Doi chung cho vong tu hoc (chay: python scripts/selfplay_control.py): train y het selfplay_v1 nhung KHONG co du lieu tu hoc, do tren cung bo seed."""
+"""Doi chung cho vong tu hoc: train y het selfplay_v1 nhung KHONG co du lieu tu hoc.
+
+Do tren cung bo seed. Chay: python scripts/selfplay_control.py
+"""
 
 import filecmp
 import shutil
