@@ -173,3 +173,15 @@ def test_expert_plays_only_in_selfplay_never_in_evaluation(fake_game, monkeypatc
     selfplay.run(str(cfg), iterations=1)
     assert ("it01", 0.5) in calls
     assert all(p == 0.0 for tag, p in calls if tag == "eval")
+
+
+def test_runner_args_are_passed_to_every_call(tmp_path, monkeypatch):
+    seen = []
+
+    class Done:
+        stdout = "TONG: bot luat 1 - 2 bot ML\n"
+
+    monkeypatch.setattr(selfplay.subprocess, "run", lambda cmd, **kw: seen.append(cmd) or Done())
+    sp = {"game_dir": str(tmp_path), "runner_args": ["--jump-after-set", "1.0"]}
+    assert selfplay.run_matches(sp, tmp_path / "out", 2, 7, "t").startswith("TONG")
+    assert seen[0][-2:] == ["--jump-after-set", "1.0"]

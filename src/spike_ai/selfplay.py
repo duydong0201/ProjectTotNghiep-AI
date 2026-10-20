@@ -58,6 +58,8 @@ def run_matches(sp: dict, out_dir: Path, matches: int, seed: int, tag: str, expe
         "--tag", tag,
         "--expert-prob", str(expert_prob),
     ]  # fmt: skip
+    # Tham số thêm cho MỌI lần gọi (tự chơi lẫn đo), vd luật nhảy: ["--jump-after-set", "1.0"].
+    cmd += [str(a) for a in sp.get("runner_args", [])]
     done = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
     totals = [line for line in done.stdout.splitlines() if line.startswith("TONG")]
     return totals[-1] if totals else done.stdout.strip().splitlines()[-1]
