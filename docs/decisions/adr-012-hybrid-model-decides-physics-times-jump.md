@@ -1,7 +1,8 @@
 # ADR-012: Model quyết định đánh gì, vật lý quyết định lúc nhảy
 
 - **Ngày:** 16/10/2026
-- **Trạng thái:** Đã cài vào game, CHỜ ĐO trong trận thật (người vs bot ML)
+- **Trạng thái:** Accepted - đã đo bot luật vs bot ML (ADR-015: nhảy 31,4% là nút thắt lớn nhất, vẫn giữ
+  vì đo từ dữ liệu người chơi); chưa đo với người chơi thật
 - **Liên quan:** ADR-011 (sau khi bỏ rò rỉ nhãn mới lộ ra giới hạn này)
 
 ## Bối cảnh

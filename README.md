@@ -55,8 +55,13 @@ python -m spike_ai.eval_policy --config configs/played_v1_aligned.yaml
 # 5) Đo bot TRONG GAME từ log trận (% điểm thắng, cú đập, đứng yên, bỏ lỡ bóng, Set/Jump, cách mất điểm)
 python -m spike_ai.eval_ingame ../ProjectTotNghiep/Logs/v1/<trận>.csv
 
-# 5b) Vòng TỰ HỌC tự động: bot tự chơi (MatchRunner, không cửa sổ) -> train -> đo -> giữ model tốt hơn (ADR-014)
-python -m spike_ai.selfplay --config configs/selfplay_v1.yaml
+# 5b) Vòng TỰ HỌC tự động: bot tự chơi (MatchRunner, không cửa sổ) -> train -> đo -> giữ model tốt hơn.
+#     Chuyên gia ghi điểm làm người dạy, xác nhận trên 2 bộ seed trước khi giữ (ADR-014, ADR-015).
+#     Model đang ở game chính: selfplay_expert_v3.
+python -m spike_ai.selfplay --config configs/selfplay_expert_v3.yaml --max-minutes 120
+
+# 5c) Đo lại model trên bộ trận MỚI (không dùng để chọn model) trước khi đưa vào game chính
+python scripts/eval_fresh_seeds.py --seed 400000 --model "v3=models/<run>/best/spike_ai_action_random_forest.h"
 
 # 6) Export model Decision Tree sang header C++ để cắm vào game
 python -m spike_ai.export_cpp --model models/<run>/move__decision_tree.joblib --out exports/

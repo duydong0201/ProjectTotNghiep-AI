@@ -215,3 +215,9 @@ Bot ML v7 đập nhanh nhiều gấp ~6 lần nhưng gần như không ăn đi�
 không kịp) cũng 0/486 - bot luật chạy tới điểm rơi tức thì nên luôn đỡ được cú đập từ mặt đất ở quả đầu.
 Mọi cú đập chỉ "chết" ~3% (đập sau Set); điểm chủ yếu đến từ đập trên cao và lỗi của bot luật.
 
+## Chốt (22/10/2026): model v3 vào game chính
+
+Repo game commit `d11ea0e` (nhánh `feat/scoring-expert`): `Source/AI/Generated/` = model
+`selfplay_expert_v3_20261020-225201/best`, kèm luật chặn an toàn (`safeSpikeMask`, `safeRuleAttack`) và
+nhảy 31,4% sau Set (đo từ dữ liệu người chơi, ADR-012). Bot luật vs bot ML: 73-75% điểm, thắng 99-100/100
+trận. Game chính vẫn là người vs bot ML. **Chưa đo với người chơi thật** - việc tiếp theo của GĐ6.
