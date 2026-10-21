@@ -89,6 +89,9 @@ Golden test chỉ kiểm tra **model**. Để kiểm tra **cách tính feature t
 - [ ] Copy file .h sang repo game, build thành công
 - [ ] `RunGoldenTest()` trả về true
 - [ ] Code tính feature trong `MLInputSystem` khớp `kFeatureNames` và `features.py`
+- [ ] Đo bot luật vs bot ML trên bộ seed **chưa dùng để chọn model** (`scripts/eval_fresh_seeds.py`),
+      chỉ thay model khi tốt hơn model đang ở game chính
+- [ ] Commit riêng ở repo game (dễ revert); game chính vẫn là người vs bot ML
 - [ ] Chơi thử vài rally, ghi nhận xét vào `reports/experiments.md`
 
 ## 4. (Tuỳ chọn) Dùng git submodule

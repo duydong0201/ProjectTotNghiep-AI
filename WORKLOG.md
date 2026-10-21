@@ -5,6 +5,42 @@
 
 ---
 
+## [2026-10-22]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Thử "đập nhanh" (chuyên gia đập ngay khi bóng vào vùng detect) | Kết quả âm | Chuyên gia 96,7% -> 82-89% điểm; cú đập quả đầu ghi 0/486 điểm (bot luật luôn đỡ được). Repo game: `--expert-quick-spike`, mặc định tắt. [ADR-015](docs/decisions/adr-015-scoring-expert-dagger.md) | - |
+| duydong0201 | `selfplay_expert_v6`: chuyên gia nhảy ~31% như bot ML | Kết quả âm | v3 73,5% -> vòng 1-3: 45,6 / 51,2 / 56,4%, cả 3 bị bỏ | - |
+| duydong0201 | `expert_only_kills` + `selfplay_expert_v7` | Done, ngang v3 | Chỉ học lượt chuyên gia tự ghi điểm bằng cú đập (2 test mới). 150 trận: v3 72,7% vs v7 73,2% (trong sai số) | - |
+| duydong0201 | Đưa model v3 vào game chính | Done | Repo game commit `d11ea0e` (nhánh `feat/scoring-expert`, chưa push): v3 + luật chặn an toàn + nhảy 31,4%. Bot luật vs bot ML: 73-75% điểm, thắng 99-100/100 trận. Chưa đo với người | - |
+| duydong0201 | Dọn repo: merge `develop` -> `main`, xoá 25 nhánh đã merge | Done | Còn `main` + `develop`; `check` PASS (ruff + 160 test) | - |
+
+**Tổng kết ngày:** Trước bot luật chỉ có một cách ghi điểm hiệu quả: Set -> Jump -> Spike trên cao (đập
+quả đầu luôn bị đỡ). Thử thêm kiểu ghi điểm không vượt v3, nên chốt v3 vào game chính. Việc tiếp theo:
+cho người thật chơi với bot ML (≥ 20 trận) để có số liệu GĐ6, rồi viết báo cáo.
+
+## [2026-10-21]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Xác nhận 2 bước khi chọn model (`confirm_seed`) và `selfplay_expert_v3` | Done | Model v3 tốt hơn trên cả 3 bộ trận độc lập (+3-4 điểm %); bộ để dành seed 400000: 69,4% (luôn nhảy) | - |
+| duydong0201 | Sửa chuyên gia: cú SpikeStrong ra ngoài sát vạch cuối | Done | Điểm rơi cách vạch ≥ một bước bay + cỡ bóng: chuyên gia 83% -> ~97% | - |
+| duydong0201 | Train liên tục 2 giờ (v4, v5) | Kết quả âm | 24 vòng, 0 vòng được giữ. Chẩn đoán: ~85% điểm bot ML mất do cú đập của chính nó | - |
+| duydong0201 | Sửa luật chặn cú đập của bot ML (repo game) | Done | `safeSpikeMask`: v3 luôn nhảy 69,4% -> 95,8% (seed 400000). `safeRuleAttack`: SpikeLight đập lưới 704 -> 2; 100 trận tới 15 điểm: thắng 100/100 và 99/100, 74,0% / 75,4% điểm | - |
+| duydong0201 | `selfplay.py --max-minutes / --stop-after`, chỉ lấy thư mục `iter_*` | Done | Có test tái hiện lỗi đọc nhầm `Logs/auto/xem_truc_tiep` | - |
+
+**Tổng kết ngày:** Bài học lớn nhất: trước khi train thêm phải xem điểm mất ở đâu. Hai giờ train không
+vượt mốc vì nút thắt nằm ở luật chặn chứ không ở model; sửa luật chặn tăng +25 điểm % mà không train lại.
+
+## [2026-10-20]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Vòng tự học tự động bằng MatchRunner (bot vs bot không cửa sổ, ~1.000× thời gian thật) | Done | `spike_ai.selfplay`, `self_imitation` trong `train.py`, [ADR-014](docs/decisions/adr-014-self-imitation-selfplay.md) | - |
+| duydong0201 | Self-imitation (học pha chính bot ML thắng / tự ghi điểm) | Kết quả âm | Không làm bot thắng nhiều hơn; đối chứng xác nhận lỗi không ở quy trình (ADR-014) | - |
+| duydong0201 | Chuyên gia ghi điểm bằng quy tắc làm người dạy (DAgger tự động) | Done | `train_on_controllers`, `controller_weight`, `controller = expert (3)`. Seed mới: 46,4% -> 49,7% (nhảy 31,4%), 60,0% -> 69,3% (luôn nhảy). [ADR-015](docs/decisions/adr-015-scoring-expert-dagger.md) | - |
+| duydong0201 | Phát hiện thiên lệch khi chọn model trên cùng bộ đo | Done | 51,0% trên seed dùng để chọn -> 49,7% trên seed mới; thêm `scripts/eval_fresh_seeds.py` | - |
+
 ## [2026-10-19]
 
 | Member | Task | Status | Output / Bằng chứng | Time |
