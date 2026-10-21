@@ -176,3 +176,21 @@ Sau khi sửa: SpikeLight đập lưới 704 -> 2. Bot ML ghi điểm chủ yế
 SpikeStrong 99%), bot luật đánh hỏng (39%), giao bóng ăn điểm (11%). Lỗi còn lại lớn nhất: **Set xong bóng
 rơi lại sân mình** (407 điểm) - những lần không nhảy (68,6%) mà cũng không đập theo.
 
+## Đập nhanh và v6 (22/10/2026): hai kết quả âm, giữ model v3
+
+**Đập nhanh** (chuyên gia đập ngay quả đầu khi bóng vào vùng detect, `--expert-quick-spike`, repo game):
+đo chính chuyên gia 100 trận (seed 600000 + 700000, ground 0.686):
+
+| chuyên gia | % điểm |
+|---|---|
+| hiện tại (Set -> Nhảy -> Đập) | **96,7%** |
+| đập nhanh 50% lượt | 82,1% |
+| đập nhanh mọi lượt | 88,0% (chỉ ~1 điểm/trận: hai bên đập qua lại tới hết giờ) |
+| đập nhanh chỉ khi đối thủ không kịp đón | 88,9% |
+
+Đập từ điểm thấp ở quả đầu thì bot luật đỡ được; đập trên cao sau Set thì không. Không dùng (mặc định 0).
+
+**`selfplay_expert_v6`** (chuyên gia chỉ nhảy ~31% sau Set như bot ML, còn lại đập từ đất; seed 1200000 /
+1300000): model v3 73,5% / 73,7%; vòng 1-3: **45,6% / 51,2% / 56,4%**, cả 3 bị bỏ, dừng. Model mới đập trúng
+ít hơn hẳn (114-142 cú/trận so với 186). Dạy "chờ bóng rồi đập từ đất" làm model kém đi; giữ v3.
+
