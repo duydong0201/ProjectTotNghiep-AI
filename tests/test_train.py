@@ -663,3 +663,22 @@ def test_default_still_learns_only_from_humans():
 def test_unknown_teacher_is_rejected():
     with pytest.raises(ValueError, match="train_on_controllers"):
         train_module.build_rows(_dagger_log(), "v1", "player", {"train_on_controllers": ["than_thanh"]})
+
+
+def test_expert_only_kills_keeps_only_scoring_expert_possessions():
+    df = _kill_log()
+    df["o_controller"] = EXPERT
+    df.loc[18:19, "o_controller"] = HUMAN  # frame nguoi choi: khong bi loc
+    cfg = {"train_on_controllers": ["human", "expert"], "expert_only_kills": True}
+    rows, _, _ = train_module.build_rows(df, "v1", ["opponent"], cfg)
+    assert sorted(rows["frame"]) == list(range(3, 10)) + [18, 19]
+
+
+def test_expert_only_kills_drops_expert_possessions_that_did_not_score():
+    df = _kill_log()
+    df["o_controller"] = EXPERT
+    df.loc[9:, "rally_last_touch_kind"] = 6  # diem do doi thu hong, khong phai cu dap cua chuyen gia
+    cfg = {"train_on_controllers": ["human", "expert"], "expert_only_kills": True}
+    with pytest.raises(ValueError, match="Khong con frame"):
+        train_module.build_rows(df, "v1", ["opponent"], cfg)
+

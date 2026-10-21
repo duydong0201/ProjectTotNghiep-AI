@@ -295,6 +295,13 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
         if only_human and controller is not None:
             human = controller.isin(teacher_codes).to_numpy()
             notes.append(f"{'+'.join(teacher_names)} dieu khien {human.sum():,}")
+            if cfg.get("expert_only_kills") and "expert" in controllers:
+                # Chỉ học những lượt cầm bóng CHUYÊN GIA TỰ GHI ĐIỂM bằng cú đập (kill_possession_mask):
+                # chuyên gia tạo nhiều kiểu ghi điểm (đập nhanh, Set -> Jump -> Spike), bot ML chỉ chép
+                # những lượt thành công, không chép lượt đập bị đỡ. Frame người chơi không bị lọc.
+                expert = (controller == controllers["expert"]).to_numpy()
+                human = human & (~expert | kill_possession_mask(df, agent))
+                notes.append(f"chuyen gia chi luot ghi diem -> con {human.sum():,}")
             allowed = human
             if si and agent == si["agent"]:
                 # TU HOC (self-imitation): them frame cua CHINH bot ML trong cac tran tu sinh

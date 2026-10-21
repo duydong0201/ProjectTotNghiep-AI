@@ -194,3 +194,24 @@ rơi lại sân mình** (407 điểm) - những lần không nhảy (68,6%) mà 
 1300000): model v3 73,5% / 73,7%; vòng 1-3: **45,6% / 51,2% / 56,4%**, cả 3 bị bỏ, dừng. Model mới đập trúng
 ít hơn hẳn (114-142 cú/trận so với 186). Dạy "chờ bóng rồi đập từ đất" làm model kém đi; giữ v3.
 
+## v7 (22/10/2026): chỉ học lượt chuyên gia ghi điểm + đập nhanh - ngang v3
+
+`selfplay_expert_v7`: chuyên gia đập nhanh ở 50% lượt (chỉ khi dự đoán đối thủ không kịp đón), còn lại
+luôn Set -> Jump -> Spike; train mới `expert_only_kills: true` chỉ giữ lượt chuyên gia tự ghi điểm bằng cú
+đập. Vòng 1 được giữ (75,1% / 73,9% so với v3 74,1% / 71,9%), vòng 2-4 bỏ, dừng.
+
+Đo thêm 50 trận mỗi seed, model v3 vs v7 vòng 1: seed 400000 (để dành) 72,6 vs 74,3%; 1000000 71,4 vs 73,2%;
+1100000 74,2 vs 72,1%. **Trung bình 72,7 vs 73,2% - ngang nhau trong sai số.**
+
+**Đập nhanh không ghi điểm được trước bot luật:** đếm cú đập ở quả chạm đầu tiên của đội:
+
+| | đập quả đầu | ghi điểm | đập sau Set | ghi điểm |
+|---|---|---|---|---|
+| chuyên gia đập nhanh, seed 600000 | 486 | **0** | 7157 | 381 |
+| bot ML v3, seed 400000 | 38 | 0 | 9655 | 237 |
+| bot ML v7, seed 400000 | 221 | 1 | 8110 | 289 |
+
+Bot ML v7 đập nhanh nhiều gấp ~6 lần nhưng gần như không ăn điểm; ngay cả chuyên gia (ước lượng đối thủ
+không kịp) cũng 0/486 - bot luật chạy tới điểm rơi tức thì nên luôn đỡ được cú đập từ mặt đất ở quả đầu.
+Mọi cú đập chỉ "chết" ~3% (đập sau Set); điểm chủ yếu đến từ đập trên cao và lỗi của bot luật.
+
