@@ -160,3 +160,19 @@ luật gốc dùng chung với bot luật (đối thủ so sánh); sửa thì đ
 **Bài học cho báo cáo:** trước khi train thêm, phải xem điểm mất ở đâu. Hai giờ train không vượt được mốc vì
 điểm nghẽn nằm ở luật chặn chứ không ở model; một sửa nhỏ ở luật chặn tăng +25 điểm %.
 
+## Cú đập do luật gốc chọn cho bot ML (21/10/2026)
+
+100 trận tới 15 điểm (model v3, luật chặn đã sửa, nhảy 31,4% từ dữ liệu người chơi): bot ML thắng 65/100
+trận, nhưng 1.103/1.150 điểm bot luật ghi được là do bot ML tự đánh hỏng - **704 điểm là SpikeLight từ mặt
+đất đập lưới**, do `PickAttackIntent` (luật gốc) chọn theo phép kiểm tra cũ. Sửa: chỉ phía bot ML dùng
+phép kiểm tra đã sửa (`RunMode.safeRuleAttack`); bot luật giữ nguyên.
+
+| 100 trận | trước | sau |
+|---|---|---|
+| seed 1000000: trận thắng / điểm | 65 / 53,2% | **100 / 74,0%** |
+| seed 1100000: trận thắng / điểm | 61 / 52,8% | **99 / 75,4%** (1 trận bị cắt, bot luật 0 trận) |
+
+Sau khi sửa: SpikeLight đập lưới 704 -> 2. Bot ML ghi điểm chủ yếu bằng **Set → Jump → Spike** (49%,
+SpikeStrong 99%), bot luật đánh hỏng (39%), giao bóng ăn điểm (11%). Lỗi còn lại lớn nhất: **Set xong bóng
+rơi lại sân mình** (407 điểm) - những lần không nhảy (68,6%) mà cũng không đập theo.
+
