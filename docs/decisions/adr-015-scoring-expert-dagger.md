@@ -123,3 +123,40 @@ như mọi model mới, kể cả model thật ra tốt hơn.
 Model v3 tốt hơn trên cả 3 bộ trận độc lập (+4,2 / +4,0 / +3,1 điểm % khi luôn nhảy). Mức tăng thật cỡ
 3-4 điểm %: nhỏ nhưng nhất quán. Model: `models/selfplay_expert_v3_20261020-225201/best/`.
 
+## Sửa chuyên gia (21/10/2026)
+
+- **Vạch cuối:** game xét "ra ngoài" theo vị trí bóng ở FRAME chạm đất; frame cuối bóng còn đi thêm tới một bước
+  (SpikeStrong ~28 px) sau điểm giao quỹ đạo với mặt đất. 145/170 điểm chuyên gia mất là SpikeStrong ra ngoài.
+  Sửa: điểm rơi phải cách vạch cuối ít nhất một bước bay + cỡ bóng. Chuyên gia **83% -> ~97%**.
+- **Thêm cách ghi điểm:** 25% cú Set xong đập từ mặt đất thay vì nhảy; rút thăm giữa các cú đập chắc ăn
+  (thực tế gần như không tác dụng: sau khi có khoảng an toàn hầu như chỉ còn một cú chắc ăn).
+
+## Train 2 giờ liên tục (21/10/2026): không vượt model v3
+
+`selfplay_expert_v4` (3 vòng) và `selfplay_expert_v5` (chuyên gia luôn nhảy khi tự chơi, 21 vòng), đo trên
+seed 800000 / xác nhận 900000: **24 vòng, không vòng nào được giữ**; model mới 63,6-69,9%, trung bình ~68%,
+so với model v3 71,1% / 71,9%.
+
+**Nguyên nhân (chẩn đoán model v3 và v5 vòng 3, 50 trận seed 800000):** ~85% số điểm bot ML mất là do **cú đập
+của chính nó** (230/273 với v3, 248/283 với v5). Luật chặn của bot ML (`SpikeLandsInCourt`, "cú đập phải rơi
+trong sân") dùng hàm đoán điểm rơi CŨ - đúng lỗi chuyên gia từng mắc (không tính bước bay cuối, không kiểm
+tra qua lưới). Model học giỏi mấy, luật chặn vẫn để cú hỏng lọt qua.
+
+## Sửa luật chặn của bot ML (21/10/2026) - không cần train lại
+
+`SpikeLandsInCourt` dùng cùng phép kiểm tra đã sửa cho chuyên gia (repo game, `RunMode.safeSpikeMask`).
+Cùng model v3:
+
+| | luật chặn cũ | luật chặn mới |
+|---|---|---|
+| luôn nhảy, seed 800000 | 71,1% (mất 230 điểm do cú đập của mình) | **94,6%** (mất 0) |
+| luôn nhảy, seed 400000 (để dành) | 69,4% (mất 265) | **95,8%** (mất 0) |
+| nhảy 31,4%, seed 800000 | 51,4% (mất 469) | 53,4% (mất 351) |
+| nhảy 31,4%, seed 400000 | 50,1% (mất 446) | 55,2% (mất 322) |
+
+Với nhảy 31,4%, phần còn mất là cú đập từ mặt đất do **luật gốc** (`PickAttackIntent`) chọn - không sửa vì
+luật gốc dùng chung với bot luật (đối thủ so sánh); sửa thì đối thủ cũng mạnh lên.
+
+**Bài học cho báo cáo:** trước khi train thêm, phải xem điểm mất ở đâu. Hai giờ train không vượt được mốc vì
+điểm nghẽn nằm ở luật chặn chứ không ở model; một sửa nhỏ ở luật chặn tăng +25 điểm %.
+
