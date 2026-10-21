@@ -205,3 +205,12 @@ def test_recent_selfplay_dirs_ignores_the_live_viewing_folder(tmp_path):
     for name in ("iter_A_01", "iter_A_02", "xem_truc_tiep"):
         (tmp_path / name).mkdir()
     assert [p.name for p in selfplay.recent_selfplay_dirs(tmp_path, 2)] == ["iter_A_01", "iter_A_02"]
+
+
+def test_max_minutes_stops_before_starting_a_new_iteration(fake_game, monkeypatch):
+    game, cfg = fake_game
+    _scores(monkeypatch, [40.0, 50.0, 60.0])
+    clock = iter([0.0, 0.0, 10 * 60.0, 10 * 60.0])  # bat dau, truoc vong 1, truoc vong 2 (da qua 10 phut)
+    monkeypatch.setattr(selfplay.time, "monotonic", lambda: next(clock))
+    out = selfplay.run(str(cfg), iterations=5, max_minutes=5)
+    assert [h["iteration"] for h in out["history"]] == [0, 1]

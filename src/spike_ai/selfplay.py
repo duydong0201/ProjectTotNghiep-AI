@@ -22,6 +22,7 @@ import gzip
 import json
 import shutil
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -155,10 +156,16 @@ def decide(best_pct: float, candidate_pct: float, min_gain: float) -> bool:
 
 
 # ------------------------------------------------------------------ vòng lặp
-def run(config_path: str, iterations: int | None = None) -> dict:
+def run(
+    config_path: str,
+    iterations: int | None = None,
+    max_minutes: float | None = None,
+    stop_after: int | None = None,
+) -> dict:
     cfg = train_module.load_config(config_path)
     sp = cfg["selfplay"]
     n_iter = iterations if iterations is not None else int(sp.get("iterations", 3))
+    started = time.monotonic()
     auto_logs = Path(sp["auto_logs"])
     auto_logs.mkdir(parents=True, exist_ok=True)
 
@@ -187,9 +194,13 @@ def run(config_path: str, iterations: int | None = None) -> dict:
     # Seed tự chơi khác nhau giữa CÁC LẦN chạy (cùng model + cùng seed = đúng các trận cũ).
     # Seed đo (eval_seed) thì giữ cố định để mọi model đấu cùng một bộ trận.
     seed_base = int(datetime.now().strftime("%y%m%d%H%M")) % 100_000_000 * 100
-    stop_after = int(sp.get("stop_after_rejections", 0))
+    stop_after = int(sp.get("stop_after_rejections", 0)) if stop_after is None else stop_after
     rejected_in_a_row = 0
     for it in range(1, n_iter + 1):
+        # Hết giờ (max_minutes) thì không mở vòng mới; vòng đang chạy luôn được làm trọn.
+        if max_minutes is not None and (time.monotonic() - started) / 60.0 >= max_minutes:
+            print(f"\n== Hết {max_minutes:.0f} phút -> dừng trước vòng {it}")
+            break
         print(f"\n== Vòng {it}/{n_iter}")
         iter_logs = auto_logs / f"iter_{stamp}_{it:02d}"
         total = run_matches(
@@ -257,8 +268,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", required=True)
     parser.add_argument("--iterations", type=int, default=None, help="ghi đè selfplay.iterations")
+    parser.add_argument("--max-minutes", type=float, default=None, help="không mở vòng mới sau ngần này phút")
+    parser.add_argument(
+        "--stop-after", type=int, default=None, help="ghi đè selfplay.stop_after_rejections (0 = không dừng)"
+    )
     args = parser.parse_args()
-    run(str(resolve(args.config)), args.iterations)
+    run(str(resolve(args.config)), args.iterations, args.max_minutes, args.stop_after)
 
 
 if __name__ == "__main__":
