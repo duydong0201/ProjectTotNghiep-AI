@@ -41,6 +41,7 @@ from .train import (
     check_label_shift,
     load_config,
     load_data,
+    uses_weights,
     validate_split_config,
 )
 
@@ -88,7 +89,7 @@ def run(config_path: str, model_name: str | None = None, tolerance: int = 3, sav
     fit_rows, X_fit, y_fit = build_rows(df, version, agent, cfg)
     print("Dòng để chấm (mọi frame):")
     eval_rows, X_eval, y_eval = build_rows(df, version, agent, {**cfg, "frames_around_action": None})
-    W = fit_rows["_weight"].to_numpy() if cfg.get("agent_weight") else None
+    W = fit_rows["_weight"].to_numpy() if uses_weights(cfg) else None
 
     # Loại holdout y như train.py: không bao giờ đụng tới.
     groups = group_keys(eval_rows, s["group_by"], agent)

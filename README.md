@@ -55,6 +55,9 @@ python -m spike_ai.eval_policy --config configs/played_v1_aligned.yaml
 # 5) Đo bot TRONG GAME từ log trận (% điểm thắng, cú đập, đứng yên, bỏ lỡ bóng, Set/Jump, cách mất điểm)
 python -m spike_ai.eval_ingame ../ProjectTotNghiep/Logs/v1/<trận>.csv
 
+# 5b) Vòng TỰ HỌC tự động: bot tự chơi (MatchRunner, không cửa sổ) -> train -> đo -> giữ model tốt hơn (ADR-014)
+python -m spike_ai.selfplay --config configs/selfplay_v1.yaml
+
 # 6) Export model Decision Tree sang header C++ để cắm vào game
 python -m spike_ai.export_cpp --model models/<run>/move__decision_tree.joblib --out exports/
 
@@ -96,6 +99,7 @@ ProjectTotNghiep-AI/
 │   ├── policy.py            #   cách bot ra quyết định trong game, chép từ AIInputSystem.cpp
 │   ├── eval_policy.py       #   CLI đo theo policy đó trên mọi frame
 │   ├── eval_ingame.py       #   CLI đo bot trong game từ log trận (các chỉ số báo cáo)
+│   ├── selfplay.py          #   CLI vòng tự học tự động (gọi MatchRunner bên repo game)
 │   └── export_cpp.py        #   CLI export model -> header C++ + golden test
 ├── scripts/                 # check.ps1/.sh (quality gate), import log, xem dữ liệu
 ├── models/                  # model đã train (.joblib) — không commit, phát hành qua Releases

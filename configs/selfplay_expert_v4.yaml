@@ -1,0 +1,66 @@
+# Ban v4 (21/10/2026): y het v3, CHUYEN GIA MOI (game 00ec4b1): cu dap cach vach cuoi mot buoc bay (83% -> ~97%),
+# them cach ghi diem: 25% cu Set xong dap tu mat dat, rut tham giua cu dap chac an. Xuat phat tu model v3 vong 1.
+#
+# Ban v3 (21/10/2026): y het v2 + XAC NHAN 2 BUOC: model moi phai thang tren bo do chinh (eval_seed 300000)
+# ROI thang tiep tren bo xac nhan (confirm_seed 500000) moi duoc giu. Bo seed 400000 de danh bao cao cuoi.
+# Bo do chinh la 300000 chu khong phai 100000: model xuat phat da duoc CHON tren 100000 nen con so o do bi
+# thoi phong (71,7% so voi 67,0% tren 300000), model moi gan nhu khong the vuot.
+# Xuat phat tu model dang o game chinh (tot nhat v1). ADR-015.
+#
+# Ban v2 (20/10/2026): y het selfplay_expert_v1, chi them runner_args: bot ML LUON NHAY sau cu Set cua minh
+# (--jump-after-set 1.0) ca luc tu choi lan luc do. Doi chung tren model tot nhat cua v1: nhay 31,4% -> 51,0%,
+# nhay 100% -> 71,7% diem. Bat dau tu model tot nhat cua v1 (dang o GeneratedAuto).
+#
+# VONG TU HOC HUONG B (ADR-015): bot ML hoc theo CHUYEN GIA GHI DIEM (quy tac, AIInputSystem::ExpertDecide)
+#   python -m spike_ai.selfplay --config configs/selfplay_expert_v1.yaml
+#
+# Giong DAgger voi nguoi choi, chi khac nguoi gianh quyen la chuyen gia: khi tu choi, moi luot cam bong
+# cua bot ML duoc giao cho chuyen gia voi xac suat expert_prob; log ghi o_controller = expert (3).
+# Train tren frame nguoi choi (Logs/v1) + frame chuyen gia (Logs/auto). Do thi chuyen gia TAT.
+# Do 50 tran seed 100000: model hien tai 45,9% diem, chuyen gia 79,2%.
+run_name: selfplay_expert_v4
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+agent: [player, opponent]
+targets: [action]
+frames_around_action: 20
+label_shift: 1
+
+train_on_controllers: [human, expert]
+agent_weight:
+  opponent: 20          # frame nguoi gianh quyen DAgger nhu dagger_v1_w_aligned
+controller_weight:
+  expert: 2.0           # frame chuyen gia
+
+split:
+  group_by: match
+  dev_mode: none        # fit 100% du lieu, ngang hang model xuat phat
+  dev_ratio: 0
+  holdout_ratio: 0
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+
+selfplay:
+  game_dir: F:/DoAnTotNghiep/ProjectTotNghiep
+  runner: build/RelWithDebInfo/MatchRunner.exe
+  build_dir: build
+  vcvars: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat
+  auto_logs: F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+  iterations: 10
+  expert_prob: 0.5            # nua so luot cam bong do chuyen gia dieu khien khi tu choi
+  matches_per_iteration: 50
+  max_frames: 54000
+  eval_matches: 50
+  eval_seed: 800000           # bo do chinh MOI: model v3 da duoc chon tren 300000 va 500000
+  confirm_seed: 900000        # bo tran xac nhan moi; 400000 de danh bao cao cuoi
+  min_gain: 0.0
+  keep_last_iterations: 2     # du lieu chuyen gia moi; vong 1 con lan 1 thu muc cua chuyen gia cu
+  stop_after_rejections: 3
+  runner_args: ["--jump-after-set", "1.0"]

@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .data import ENTITY_NONE, load_match, rebuild_kind_v1_to_v2
+from .data import ENTITY_NONE, is_feature_dump, load_match, log_files, rebuild_kind_v1_to_v2
 from .policy import MIN_Y, detect_percent
 from .schema import load_spec
 
@@ -37,7 +37,7 @@ SIDES = {  # tên agent trong policy.py, tiền tố cột, entity, đội
     "trái": ("player", "p_", 0, 0),
     "phải": ("opponent", "o_", 3, 1),
 }
-CONTROLLER_NAMES = {0: "người", 1: "bot luật", 2: "bot ML"}
+CONTROLLER_NAMES = {0: "người", 1: "bot luật", 2: "bot ML", 3: "chuyên gia"}
 ALIVE = -1
 
 
@@ -249,8 +249,8 @@ def _collect(paths) -> list[Path]:
     out = []
     for p in map(Path, paths):
         if p.is_dir():
-            out += sorted(x for x in p.rglob("*.csv") if not x.name.endswith("_feat.csv"))
-        elif p.suffix == ".csv":
+            out += [x for x in log_files(p) if not is_feature_dump(x)]
+        elif p.name.endswith((".csv", ".csv.gz")):
             out.append(p)
     return out
 
