@@ -80,3 +80,14 @@ khi áp bất cứ thứ gì).
 Khi dữ liệu huấn luyện được ghi từ một vòng lặp mô phỏng, phải kiểm **thời điểm ghi so với
 thời điểm áp hành động**. Một cách kiểm rẻ: tại các dòng có nhãn hành động, nhân vật phải ở
 trạng thái *có thể hành động*. Ở dự án này, phép kiểm đó cho 0% thay vì ~100%.
+
+## Cập nhật 19/10/2026: `label_shift` bắt buộc
+
+Mặc định cũ là `0`, nên chạy lại một config cũ là ra model rò rỉ mà không có cảnh báo. Từ nay
+`train` và `eval_policy` **báo lỗi** nếu config schema v1/v2 không khai báo `label_shift`
+(`train.check_label_shift`), và in cảnh báo nếu khai báo `0`. 14 config cũ được ghi rõ
+`label_shift: 0` để vẫn tái lập đúng kết quả đã ghi trong `experiments.md`; test
+`test_every_v1_v2_config_declares_label_shift` chặn config mới quên khai báo.
+
+Các kết quả đo với `label_shift: 0` (model DAgger, kết quả âm của schema v2 ở ADR-010) chưa được đo
+lại với `label_shift: 1`, nên chưa dùng làm kết luận.

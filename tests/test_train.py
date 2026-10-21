@@ -209,6 +209,7 @@ def test_lopo_leaves_out_one_player_per_fold(env):
         schema="v1",
         agent="player",
         split={"group_by": "match", "dev_mode": "lopo", "dev_ratio": 0, "holdout_ratio": 0, "salt": SALT},
+        label_shift=0,
     )
 
     metrics = train_module.run(config)
@@ -457,6 +458,7 @@ def test_run_applies_weights_and_exclude_matches(env, monkeypatch):
         models={"wspy": {}},
         agent_weight={"opponent": 20},
         exclude_matches=["mophong"],
+        label_shift=0,
     )
     train_module.run(cfg)
     # 2 fold CV + 1 lan fit cuoi. Moi lan fit chi thay frame nguoi o san phai, trong so 20.
@@ -516,3 +518,167 @@ def test_without_label_shift_nothing_changes():
     rows, _, y = train_module.build_rows(df, "v1", "player", {})
     assert dict(zip(rows["frame"], y["action"], strict=True))[5] == "Set"
     assert len(rows) == 8
+
+
+# ------------------------------------------------- label_shift bat buoc voi log v1/v2 (ADR-011)
+def test_v1_config_without_label_shift_is_rejected(env):
+    """Truoc day mac dinh la 0: chay lai config cu ra model ro ri nhan ma khong ai biet."""
+    tmp, write_config = env
+    _write_v1(tmp / "data", "m0", "P01", "v1")
+    config = write_config(schema="v1", agent="player")
+    with pytest.raises(ValueError, match="label_shift"):
+        train_module.run(config)
+
+
+def test_label_shift_zero_runs_but_warns(capsys):
+    assert train_module.check_label_shift({"label_shift": 0}, "v1") == 0
+    assert "RÒ RỈ NHÃN" in capsys.readouterr().out
+
+
+def test_label_shift_one_is_silent(capsys):
+    assert train_module.check_label_shift({"label_shift": 1}, "v2") == 1
+    assert capsys.readouterr().out == ""
+
+
+def test_v0_does_not_need_label_shift():
+    assert train_module.check_label_shift({}, "v0") == 0
+
+
+# ------------------------------------------------- tu hoc (self_imitation, ADR-014)
+def _selfplay_log(match_id="auto0", o_pid="MLAUTO"):
+    """24 frame, 2 pha bong: pha 1 (frame 0-7) bot ML (san phai) thang, pha 2 (12-19) bot luat thang."""
+    df = _dagger_log(n=24, match_id=match_id, p_ctrl=RULE_BOT, o_ctrl=ML_BOT)
+    df["o_player_id"] = o_pid
+    df["ball_state_frame"] = 50
+    df.loc[0:7, "ball_state_frame"] = -1
+    df.loc[12:19, "ball_state_frame"] = -1
+    df.loc[9:, "score_right"] = 1
+    df.loc[21:, "score_left"] = 1
+    return df
+
+
+def test_won_rally_mask_marks_only_rallies_the_team_won():
+    df = _selfplay_log()
+    right = train_module.won_rally_mask(df, team=1)
+    left = train_module.won_rally_mask(df, team=0)
+    assert np.flatnonzero(right).tolist() == list(range(0, 8))
+    assert np.flatnonzero(left).tolist() == list(range(12, 20))
+
+
+def test_self_imitation_keeps_ml_frames_of_won_rallies_from_selfplay_matches_only():
+    df = pd.concat([_selfplay_log("auto0"), _selfplay_log("nguoi_vs_bot", o_pid="BOT")], ignore_index=True)
+    cfg = {"self_imitation": {"agent": "opponent", "player_id": "MLAUTO"}}
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], cfg)
+    assert set(rows["_agent"]) == {"opponent"}  # san trai la bot luat -> bo
+    assert set(rows["match_id"]) == {"auto0"}  # tran nguoi vs bot cu khong bi lan vao
+    assert sorted(rows["frame"]) == list(range(0, 8))  # chi pha bot ML thang
+
+
+def test_self_imitation_weight_is_separate_from_agent_weight():
+    df = _selfplay_log()
+    df.loc[22:23, "o_controller"] = HUMAN  # vai frame nguoi gianh quyen (DAgger)
+    cfg = {
+        "agent_weight": {"opponent": 20},
+        "self_imitation": {"agent": "opponent", "player_id": "MLAUTO", "weight": 0.5},
+    }
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], cfg)
+    w = dict(zip(rows["frame"], rows["_weight"], strict=True))
+    assert w[0] == 0.5 and w[22] == 20.0
+
+
+def test_self_imitation_agent_must_be_trained():
+    with pytest.raises(ValueError, match="self_imitation.agent"):
+        train_module.build_rows(
+            _selfplay_log(), "v1", "player", {"self_imitation": {"agent": "opponent", "player_id": "X"}}
+        )
+
+
+def _kill_log():
+    """1 pha bong: bot luat giao (frame 2), bot ML Set (5) roi dap (9) va thang diem."""
+    df = _dagger_log(n=20, match_id="auto_k", p_ctrl=RULE_BOT, o_ctrl=ML_BOT)
+    df["o_player_id"] = "MLAUTO"
+    df["rally_last_touch"] = 8
+    df["ball_state_frame"] = 50
+    df.loc[0:11, "ball_state_frame"] = -1
+    df.loc[2:, ["rally_last_touch", "rally_touch_count"]] = [0, 1]
+    df.loc[5:, ["rally_last_touch", "rally_touch_count"]] = [3, 1]
+    df.loc[9:, ["rally_last_touch", "rally_touch_count"]] = [3, 2]
+    df["rally_last_touch_kind"] = 0
+    df.loc[2:, "rally_last_touch_kind"] = 4  # Serve
+    df.loc[5:, "rally_last_touch_kind"] = 6  # Set
+    df.loc[9:, "rally_last_touch_kind"] = 8  # SpikeMedium
+    df.loc[13:, "score_right"] = 1
+    return df
+
+
+def test_kill_possession_keeps_only_the_scoring_possession():
+    m = train_module.kill_possession_mask(_kill_log(), "opponent")
+    assert np.flatnonzero(m).tolist() == list(range(3, 10))  # sau cu cham cuoi cua doi thu -> cu dap
+
+
+def test_won_rally_without_own_spike_is_not_a_kill():
+    df = _kill_log()
+    df.loc[9:, "rally_last_touch_kind"] = 6  # cham cuoi la Set chu khong phai dap (diem do doi thu hong)
+    assert not train_module.kill_possession_mask(df, "opponent").any()
+
+
+def test_dev_mode_none_fits_on_everything_without_offline_metrics(env):
+    tmp, write_config = env
+    for i in range(4):
+        _write_v1(tmp / "data", f"m{i}", "P01", "v1")
+    config = write_config(
+        schema="v1",
+        agent="player",
+        label_shift=0,
+        split={"group_by": "match", "dev_mode": "none", "dev_ratio": 0, "holdout_ratio": 0, "salt": SALT},
+    )
+    metrics = train_module.run(config)
+    assert metrics == {}
+    assert _SpyModel.fitted_rows == [4 * FRAMES]
+
+
+# ------------------------------------------------- hoc tu chuyen gia (train_on_controllers, ADR-015)
+EXPERT = 3
+
+
+def test_train_on_expert_frames_with_their_own_weight():
+    df = _dagger_log(n=12, match_id="auto_e", p_ctrl=RULE_BOT, o_ctrl=[ML_BOT] * 4 + [EXPERT] * 6 + [HUMAN] * 2)
+    cfg = {
+        "train_on_controllers": ["human", "expert"],
+        "agent_weight": {"opponent": 20},
+        "controller_weight": {"expert": 2},
+    }
+    rows, _, _ = train_module.build_rows(df, "v1", ["player", "opponent"], cfg)
+    w = dict(zip(rows["frame"], rows["_weight"], strict=True))
+    assert sorted(w) == list(range(4, 12))  # bo frame bot ML va toan bo san trai (bot luat)
+    assert w[4] == 2.0 and w[10] == 20.0
+
+
+def test_default_still_learns_only_from_humans():
+    df = _dagger_log(n=6, p_ctrl=RULE_BOT, o_ctrl=[EXPERT] * 3 + [HUMAN] * 3)
+    rows, _, _ = train_module.build_rows(df, "v1", ["opponent"], {})
+    assert sorted(rows["frame"]) == [3, 4, 5]
+
+
+def test_unknown_teacher_is_rejected():
+    with pytest.raises(ValueError, match="train_on_controllers"):
+        train_module.build_rows(_dagger_log(), "v1", "player", {"train_on_controllers": ["than_thanh"]})
+
+
+def test_expert_only_kills_keeps_only_scoring_expert_possessions():
+    df = _kill_log()
+    df["o_controller"] = EXPERT
+    df.loc[18:19, "o_controller"] = HUMAN  # frame nguoi choi: khong bi loc
+    cfg = {"train_on_controllers": ["human", "expert"], "expert_only_kills": True}
+    rows, _, _ = train_module.build_rows(df, "v1", ["opponent"], cfg)
+    assert sorted(rows["frame"]) == list(range(3, 10)) + [18, 19]
+
+
+def test_expert_only_kills_drops_expert_possessions_that_did_not_score():
+    df = _kill_log()
+    df["o_controller"] = EXPERT
+    df.loc[9:, "rally_last_touch_kind"] = 6  # diem do doi thu hong, khong phai cu dap cua chuyen gia
+    cfg = {"train_on_controllers": ["human", "expert"], "expert_only_kills": True}
+    with pytest.raises(ValueError, match="Khong con frame"):
+        train_module.build_rows(df, "v1", ["opponent"], cfg)
+

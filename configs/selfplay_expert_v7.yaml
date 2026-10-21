@@ -1,0 +1,53 @@
+# Ban v7 (22/10/2026): chuyen gia tao 2 kieu ghi diem, bot ML chi hoc nhung luot chuyen gia GHI DUOC DIEM:
+#   1. dap nhanh: nua so luot, qua dau bong vao vung detect la dap luon neu doi thu khong kip don (margin > 0)
+#   2. Set -> Jump -> Spike: chuyen gia luon nhay sau Set (ground 0)
+# expert_only_kills: bo luot chuyen gia dap bi do (v6 cho thay chep ca luot hong lam model kem di).
+# Bot ML van nhay 31,4% sau Set (mac dinh). Xuat phat tu v3. Seed moi 1400000 / 1500000; de danh 400000.
+#
+run_name: selfplay_expert_v7
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+agent: [player, opponent]
+targets: [action]
+frames_around_action: 20
+label_shift: 1
+
+train_on_controllers: [human, expert]
+agent_weight:
+  opponent: 20          # frame nguoi gianh quyen DAgger nhu dagger_v1_w_aligned
+controller_weight:
+  expert: 4.0           # frame chuyen gia (it hon v3 vi chi giu luot ghi diem)
+expert_only_kills: true  # chi hoc luot chuyen gia TU GHI DIEM bang cu dap
+
+split:
+  group_by: match
+  dev_mode: none        # fit 100% du lieu, ngang hang model xuat phat
+  dev_ratio: 0
+  holdout_ratio: 0
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+
+selfplay:
+  game_dir: F:/DoAnTotNghiep/ProjectTotNghiep
+  runner: build/RelWithDebInfo/MatchRunner.exe
+  build_dir: build
+  vcvars: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat
+  auto_logs: F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+  iterations: 10
+  expert_prob: 0.5            # nua so luot cam bong do chuyen gia dieu khien khi tu choi
+  matches_per_iteration: 50
+  max_frames: 54000
+  eval_matches: 50
+  eval_seed: 1400000          # bo do chinh moi
+  confirm_seed: 1500000       # bo tran xac nhan (khac bo do chinh)
+  min_gain: 0.0
+  keep_last_iterations: 3     # du lieu chuyen gia cua 3 vong gan nhat
+  stop_after_rejections: 3
+  runner_args: ["--expert-ground-after-set", "0", "--expert-quick-spike", "0.5", "--expert-quick-min-margin", "0"]

@@ -70,3 +70,8 @@ models:
 # script mo phong. Xem dagger_v1_w_real.yaml (chi du lieu that) de so sanh.
 agent_weight:
   opponent: 20
+
+# Ghep nhan CUNG frame = RO RI NHAN (ADR-011): model nhin thay dap an, diem offline cao ao.
+# Giu 0 chi de chay lai ra dung ket qua cu da ghi trong reports/experiments.md.
+# Train model moi thi dung label_shift: 1 (xem played_v1_aligned.yaml).
+label_shift: 0

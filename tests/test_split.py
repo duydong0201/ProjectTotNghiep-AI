@@ -107,6 +107,14 @@ def test_all_configs_share_the_frozen_salt():
         assert cfg["split"]["salt"] == SALT, path.name
 
 
+def test_every_v1_v2_config_declares_label_shift():
+    """Thieu label_shift thi train bao loi (ADR-011). Test nay bat loi ngay khi them config moi."""
+    for path in CONFIG_DIR.glob("*.yaml"):
+        cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if cfg["schema"] != "v0":
+            assert "label_shift" in cfg, path.name
+
+
 def test_zero_holdout_ratio_is_allowed():
     index = split_by_hash(_groups(20), SALT, 0.2, 0.0)
     assert len(index[HOLDOUT]) == 0 and len(index[DEV]) > 0

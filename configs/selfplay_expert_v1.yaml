@@ -1,0 +1,51 @@
+# VONG TU HOC HUONG B (ADR-015): bot ML hoc theo CHUYEN GIA GHI DIEM (quy tac, AIInputSystem::ExpertDecide)
+#   python -m spike_ai.selfplay --config configs/selfplay_expert_v1.yaml
+#
+# Giong DAgger voi nguoi choi, chi khac nguoi gianh quyen la chuyen gia: khi tu choi, moi luot cam bong
+# cua bot ML duoc giao cho chuyen gia voi xac suat expert_prob; log ghi o_controller = expert (3).
+# Train tren frame nguoi choi (Logs/v1) + frame chuyen gia (Logs/auto). Do thi chuyen gia TAT.
+# Do 50 tran seed 100000: model hien tai 45,9% diem, chuyen gia 79,2%.
+run_name: selfplay_expert_v1
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+agent: [player, opponent]
+targets: [action]
+frames_around_action: 20
+label_shift: 1
+
+train_on_controllers: [human, expert]
+agent_weight:
+  opponent: 20          # frame nguoi gianh quyen DAgger nhu dagger_v1_w_aligned
+controller_weight:
+  expert: 2.0           # frame chuyen gia
+
+split:
+  group_by: match
+  dev_mode: none        # fit 100% du lieu, ngang hang model xuat phat
+  dev_ratio: 0
+  holdout_ratio: 0
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+
+selfplay:
+  game_dir: F:/DoAnTotNghiep/ProjectTotNghiep
+  runner: build/RelWithDebInfo/MatchRunner.exe
+  build_dir: build
+  vcvars: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat
+  auto_logs: F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+  iterations: 10
+  expert_prob: 0.5            # nua so luot cam bong do chuyen gia dieu khien khi tu choi
+  matches_per_iteration: 50
+  max_frames: 54000
+  eval_matches: 50
+  eval_seed: 100000
+  min_gain: 0.0
+  keep_last_iterations: 3     # du lieu chuyen gia cua 3 vong gan nhat
+  stop_after_rejections: 3

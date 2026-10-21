@@ -5,6 +5,15 @@
 
 ---
 
+## [2026-10-19]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Đo offline đúng cách bot ra quyết định trong game | Done | `policy.py`, `eval_policy.py`, 17 test mới, [ADR-013](docs/decisions/adr-013-evaluate-with-game-policy.md). 30 trận thật: macro-F1 argmax 0,110, bot trong game 0,141 | - |
+| duydong0201 | Phát hiện dữ liệu sinh tự động trong `Logs/v1` | Cần quyết định | 298/338 file có 100% cú chạm ở `ball_y = 305` (vật lý không khớp game). Kết quả các ngày trước trên các tập đó cần đọc lại, xem ADR-013 | - |
+| duydong0201 | Script đo bot trong game chính thức | Done | `python -m spike_ai.eval_ingame <log>`: % điểm thắng, cú đập bấm/trúng, đứng yên, bỏ lỡ bóng vào tầm, Set/Bump/Jump, chuỗi Set->Jump->Spike, Jump bừa, cách mất điểm. 11 test. Khớp số đo tay bot-vs-bot 16/10 (13-5, chuỗi 20, Jump bừa 0). Thay `scripts/analyze_botvsbot.py` | - |
+| duydong0201 | Bắt buộc khai báo `label_shift` cho config v1/v2 | Done | Thiếu thì `train`/`eval_policy` báo lỗi, `0` thì cảnh báo rò rỉ nhãn; 14 config cũ ghi rõ `label_shift: 0` để tái lập; 5 test mới (ADR-011) | - |
+
 ## [2026-10-08]
 
 | Member | Task | Status | Output / Bằng chứng | Time |

@@ -131,3 +131,13 @@ void DatasetLogger::WriteFrame(int frame, float dtMs, ComponentStorage* s, Inten
     // rồi ghi đúng thứ tự cột trong raw_columns.
 }
 ```
+
+## Log tự sinh của vòng tự học (`Logs/auto/`, từ 20/10/2026)
+
+`MatchRunner.exe` (repo game) ghi cùng định dạng với `Logs/v1`, nhưng:
+
+- sân trái là bot luật (`p_controller = 1`, `p_player_id = BOTRULE`), sân phải là bot ML
+  (`o_controller = 2`, `o_player_id = MLAUTO`);
+- `game_version` có đuôi `-runner`;
+- nằm ở `Logs/auto/`, KHÔNG trộn với `Logs/v1` (dữ liệu người chơi). Config nào muốn dùng phải ghi rõ
+  thư mục này trong `data_dirs` (xem `configs/selfplay_v1.yaml`, ADR-014).

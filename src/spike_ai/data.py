@@ -69,6 +69,16 @@ def rebuild_frames_v0(df: pd.DataFrame, max_fill_gap: int = MAX_FILL_GAP) -> pd.
     return filled.reset_index()
 
 
+def log_files(folder: Path) -> list[Path]:
+    """Mọi file log trong thư mục (đệ quy): .csv và .csv.gz (log tự sinh được nén, xem selfplay.py)."""
+    return sorted([*folder.rglob("*.csv"), *folder.rglob("*.csv.gz")])
+
+
+def is_feature_dump(path: Path) -> bool:
+    """File dump feature để đối chiếu C++/Python, không phải log trận."""
+    return path.name.removesuffix(".gz").endswith("_feat.csv")
+
+
 def load_match(path: str | Path) -> tuple[pd.DataFrame, str]:
     """Đọc một file log, trả về (DataFrame, version). Luôn có cột match_id và source."""
     path = Path(path)
@@ -81,7 +91,7 @@ def load_match(path: str | Path) -> tuple[pd.DataFrame, str]:
         df = rebuild_frames_v0(df)
 
     if "match_id" not in df.columns:
-        df["match_id"] = path.stem
+        df["match_id"] = path.name.removesuffix(".gz").removesuffix(".csv")
     df["match_id"] = df["match_id"].astype(str)
     # source = tên thư mục chứa file (vd: bot / human / v0)
     df["source"] = path.parent.name
@@ -127,8 +137,8 @@ def load_dirs(dirs: list[str | Path], expected_version: str | None = None) -> pd
         d = resolve(d)
         if not d.exists():
             raise FileNotFoundError(f"Không thấy thư mục dữ liệu: {d}")
-        for path in sorted(d.rglob("*.csv")):
-            if path.name.endswith("_feat.csv"):
+        for path in log_files(d):
+            if is_feature_dump(path):
                 continue  # file dump feature để đối chiếu, không phải log trận
             df, version = load_match(path)
             if df.empty:
