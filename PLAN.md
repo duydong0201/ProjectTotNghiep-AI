@@ -3,6 +3,18 @@
 > Lập ngày 21/09/2026. Mốc thời gian tính theo **tuần**, hãy điền ngày thật theo lịch
 > bảo vệ đồ án của bạn. Đánh dấu `[x]` khi xong.
 
+## Tình trạng (22/10/2026)
+
+| GĐ | Tình trạng |
+|---|---|
+| 0-2 | Xong: pipeline, schema v1, `DatasetLogger`, export C++ + golden test |
+| 3 | Một phần: 30 trận người thật + 298 trận tổng hợp (ADR-013); chưa đủ ≥ 8 người × 5 trận |
+| 4-5 | Xong: Random Forest, label_shift (ADR-011), luật chặn, model v3 trong game chính |
+| 6 | Một phần: bot luật vs bot ML đo kỹ (73-75% điểm, thắng 99-100/100 trận). **Chưa:** người vs bot ML, holdout tương lai, độ giống người, khảo sát |
+| 7 | DAgger + vòng tự học với chuyên gia (ADR-014, ADR-015). Chưa viết báo cáo, slide, video |
+
+Các ô `[ ]` bên dưới là kế hoạch gốc, chưa đánh dấu lại từng ô.
+
 ## Tổng quan
 
 ```text
