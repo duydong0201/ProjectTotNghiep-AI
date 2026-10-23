@@ -331,6 +331,12 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
             # Trọng số theo người dạy (vd chuyên gia), ghi đè agent_weight cho đúng các dòng đó.
             for code, w in controller_weight.items():
                 weight[(controller == code).to_numpy()] = w
+            if cfg.get("expert_kill_weight") is not None and "expert" in controllers:
+                # Học CHỦ YẾU từ pha ghi điểm: lượt chuyên gia tự ghi điểm bằng cú đập (kill_possession_mask)
+                # có trọng số riêng, cao hơn các lượt chuyên gia còn lại (vẫn học, theo controller_weight).
+                kills = (controller == controllers["expert"]).to_numpy() & kill_possession_mask(df, agent)
+                weight[kills] = float(cfg["expert_kill_weight"])
+                notes.append(f"luot chuyen gia ghi diem x{cfg['expert_kill_weight']} {kills.sum():,}")
         if si and agent == si["agent"]:
             # Trong so RIENG cho dong tu hoc, khong nhan voi agent_weight (agent_weight cua san phai
             # danh cho frame nguoi gianh quyen DAgger, vd x20).

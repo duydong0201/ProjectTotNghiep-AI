@@ -682,3 +682,13 @@ def test_expert_only_kills_drops_expert_possessions_that_did_not_score():
     with pytest.raises(ValueError, match="Khong con frame"):
         train_module.build_rows(df, "v1", ["opponent"], cfg)
 
+
+def test_expert_kill_weight_upweights_scoring_possessions_and_keeps_the_rest():
+    df = _kill_log()
+    df["o_controller"] = EXPERT
+    cfg = {"train_on_controllers": ["human", "expert"], "controller_weight": {"expert": 1}, "expert_kill_weight": 5}
+    rows, _, _ = train_module.build_rows(df, "v1", ["opponent"], cfg)
+    w = dict(zip(rows["frame"], rows["_weight"], strict=True))
+    assert w[5] == 5.0  # trong luot ghi diem (frame 3-9)
+    assert w[15] == 1.0  # ngoai luot ghi diem: van hoc, trong so thuong
+
