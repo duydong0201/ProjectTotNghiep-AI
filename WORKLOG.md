@@ -5,6 +5,21 @@
 
 ---
 
+## [2026-10-23]
+
+| Member | Task | Status | Output / Bằng chứng | Time |
+|---|---|---|---|---|
+| duydong0201 | Phân tích chuỗi Set -> Jump -> Spike | Done | Chỉ SpikeStrong trên không ghi điểm (chuyên gia 520/1105, bot ML 277/706; SpikeMedium 0/2298), và chỉ khi Set cách lưới ≥ 430 px | - |
+| duydong0201 | Model tự quyết nhảy (vật lý chọn frame), repo game `--model-decides-jump` | Done | Model v3, seed 400000: 72,6% -> **93,8%**; seed 1000000: 71,4% -> 91,4%; thắng 95 -> 100/100 trận; chuỗi ghi điểm 524 -> 940. Không train lại | - |
+| duydong0201 | `selfplay_expert_v8` (quy ước chuyên gia theo khoảng cách lưới) + `expert_kill_weight` | Kết quả âm | Mốc 92,0%; vòng 1-3: 84,9 / 71,4 / 56,1% | - |
+| duydong0201 | `selfplay_expert_v9` (chuyên gia đập ngay 20%) | Kết quả âm | Model không học được đập ngay (16-20 cú/50 trận, ghi 0) | - |
+| duydong0201 | `selfplay_expert_v10`: ép học đập ngay (`expert_quick_weight`, `keep_all`) | Done | Vòng 2: đập ngay ~60 lần/trận, 82,0% điểm (seed 400000). 4 test mới | - |
+| duydong0201 | Đưa **v10 vòng 2** vào game chính, mặc định model tự quyết nhảy | Done | Repo game `2cc342c` (merge vào `feat/dong`). 100 trận: thắng **100/100**, **80,3%** điểm. 163 test pass | - |
+
+**Tổng kết ngày:** Bước tăng lớn nhất lại không đến từ train thêm mà từ để model quyết việc nhảy (72,6% ->
+93,8%). Đập ngay không ghi điểm được trước bot luật, nên chỉ học được khi ép bằng trọng số; chọn v10 vòng 2
+vì lối chơi đa dạng hơn, đổi lại −12 điểm %. Việc tiếp theo: người thật chơi với bot ML, báo cáo.
+
 ## [2026-10-22]
 
 | Member | Task | Status | Output / Bằng chứng | Time |
