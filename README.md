@@ -17,27 +17,27 @@ trạng thái game (21 feature)  ──►  Random Forest  ──►  hành đ�
 Model đang dùng trong game chính: **`selfplay_expert_v10` vòng 2** (từ 23/10/2026). Đo bằng 100 trận bot
 luật (sân trái) đấu bot ML (sân phải), chạy không cửa sổ:
 
-| Chỉ số | Bot ML |
-|---|---|
-| Trận thắng | **100 / 100** |
-| % điểm thắng | **80,3%** (1381 – 338) |
-| Điểm mất mỗi trận | 3,4 |
-| Lối chơi | Set → Jump → Spike, đập ngay khi bóng vào vùng detect (~62 lần/trận), Bump cứu bóng |
+| Chỉ số            | Bot ML                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| Trận thắng        | **98 / 100**                                                                        |
+| % điểm thắng      | **80,3%** (1381 – 338)                                                              |
+| Điểm mất mỗi trận | 3,4                                                                                 |
+| Lối chơi          | Set → Jump → Spike, đập ngay khi bóng vào vùng detect (~62 lần/trận), Bump cứu bóng |
 
 Chưa đánh giá với người chơi thật. Tiến triển qua từng mốc và các kết quả âm:
 [reports/experiments.md](reports/experiments.md), [ADR-015](docs/decisions/adr-015-scoring-expert-dagger.md).
 
 ## Cách hoạt động
 
-| Thành phần | Mô tả |
-|---|---|
-| **Dữ liệu** | Game ghi mỗi frame một dòng (schema v1: nhân vật, bóng, quỹ đạo, điểm số, phím bấm, loại cú chạm) vào `Logs/v1/*.csv` |
-| **Feature** | 21 feature tính lại được y hệt trong C++ (chỉ cộng/trừ, so sánh, lật sân qua lưới) – [`schema/feature_spec.v1.json`](schema/feature_spec.v1.json) |
-| **Nhãn** | Hành động của frame kế tiếp (`label_shift: 1`), vì game ghi log sau khi áp hành động – [ADR-011](docs/decisions/adr-011-label-leakage-from-logging-order.md) |
-| **Model** | Random Forest (100 cây), xuất sang header C++ có golden test so khớp Python – [ADR-002](docs/decisions/adr-002-custom-cpp-exporter.md) |
-| **Trong game** | Model chọn hành động và quyết có nhảy sau Set; vật lý chọn frame nhảy; luật chặn loại cú đập ra ngoài/đập lưới – [ADR-012](docs/decisions/adr-012-hybrid-model-decides-physics-times-jump.md) |
+| Thành phần               | Mô tả                                                                                                                                                                                                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dữ liệu**              | Game ghi mỗi frame một dòng (schema v1: nhân vật, bóng, quỹ đạo, điểm số, phím bấm, loại cú chạm) vào `Logs/v1/*.csv`                                                                                                                                                                                                           |
+| **Feature**              | 21 feature tính lại được y hệt trong C++ (chỉ cộng/trừ, so sánh, lật sân qua lưới) – [`schema/feature_spec.v1.json`](schema/feature_spec.v1.json)                                                                                                                                                                               |
+| **Nhãn**                 | Hành động của frame kế tiếp (`label_shift: 1`), vì game ghi log sau khi áp hành động – [ADR-011](docs/decisions/adr-011-label-leakage-from-logging-order.md)                                                                                                                                                                    |
+| **Model**                | Random Forest (100 cây), xuất sang header C++ có golden test so khớp Python – [ADR-002](docs/decisions/adr-002-custom-cpp-exporter.md)                                                                                                                                                                                          |
+| **Trong game**           | Model chọn hành động và quyết có nhảy sau Set; vật lý chọn frame nhảy; luật chặn loại cú đập ra ngoài/đập lưới – [ADR-012](docs/decisions/adr-012-hybrid-model-decides-physics-times-jump.md)                                                                                                                                   |
 | **Vòng tự học (DAgger)** | `MatchRunner` (bot vs bot không cửa sổ, ~1.000× thời gian thật) tự chơi, một nửa số lượt do chuyên gia quy tắc điều khiển → train lại → export → build → đo trên bộ trận mới → chỉ giữ model tốt hơn – [ADR-014](docs/decisions/adr-014-self-imitation-selfplay.md), [ADR-015](docs/decisions/adr-015-scoring-expert-dagger.md) |
-| **Đánh giá** | Chia dữ liệu theo trận/người chơi; đo offline đúng cách bot quyết định trong game ([ADR-013](docs/decisions/adr-013-evaluate-with-game-policy.md)); đo trong game trên bộ seed chưa dùng để chọn model |
+| **Đánh giá**             | Chia dữ liệu theo trận/người chơi; đo offline đúng cách bot quyết định trong game ([ADR-013](docs/decisions/adr-013-evaluate-with-game-policy.md)); đo trong game trên bộ seed chưa dùng để chọn model                                                                                                                          |
 
 ## Cài đặt
 
@@ -107,16 +107,16 @@ ProjectTotNghiep-AI/
 
 ## Tài liệu
 
-| Cần tìm | Ở đâu |
-|---|---|
-| Kế hoạch và tình trạng từng giai đoạn | [PLAN.md](PLAN.md) |
-| Việc đã xong kèm bằng chứng | [WORKLOG.md](WORKLOG.md) |
-| Quy trình làm việc (branch, commit, thí nghiệm) | [docs/workflow.md](docs/workflow.md) |
-| Hợp đồng dữ liệu với repo game | [docs/data_contract.md](docs/data_contract.md) |
-| Tích hợp model vào C++ | [docs/integration.md](docs/integration.md) |
-| Lý do các quyết định kỹ thuật (ADR-001 – 015) | [docs/decisions/](docs/decisions/README.md) |
-| Kết quả thí nghiệm | [reports/experiments.md](reports/experiments.md) |
-| Thay đổi phía game | repo game, `docs/ai-changes/README.md` (nhánh `feat/dong`) |
+| Cần tìm                                         | Ở đâu                                                      |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| Kế hoạch và tình trạng từng giai đoạn           | [PLAN.md](PLAN.md)                                         |
+| Việc đã xong kèm bằng chứng                     | [WORKLOG.md](WORKLOG.md)                                   |
+| Quy trình làm việc (branch, commit, thí nghiệm) | [docs/workflow.md](docs/workflow.md)                       |
+| Hợp đồng dữ liệu với repo game                  | [docs/data_contract.md](docs/data_contract.md)             |
+| Tích hợp model vào C++                          | [docs/integration.md](docs/integration.md)                 |
+| Lý do các quyết định kỹ thuật (ADR-001 – 015)   | [docs/decisions/](docs/decisions/README.md)                |
+| Kết quả thí nghiệm                              | [reports/experiments.md](reports/experiments.md)           |
+| Thay đổi phía game                              | repo game, `docs/ai-changes/README.md` (nhánh `feat/dong`) |
 
 ## Quy ước
 
