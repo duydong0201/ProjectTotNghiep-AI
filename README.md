@@ -1,130 +1,127 @@
-# ProjectTotNghiep-AI — AI học từ hành vi người chơi
+# ProjectTotNghiep-AI — Bot bóng chuyền học bằng Behavior Cloning
 
-Phần AI/ML của đồ án **The Spike Cross Remaster** (game bóng chuyền 2D, repo game:
-[thanh551419a/ProjectTotNghiep](https://github.com/thanh551419a/ProjectTotNghiep)).
+Phần AI/ML của đồ án tốt nghiệp **The Spike Cross Remaster**, game bóng chuyền 2D viết bằng C++/Axmol
+(repo game: [thanh551419a/ProjectTotNghiep](https://github.com/thanh551419a/ProjectTotNghiep)).
 
-Mục tiêu: học một **policy** bắt chước hành vi người chơi (Behavior Cloning):
+Repo này huấn luyện một **policy** điều khiển nhân vật bot: nhìn trạng thái game ở mỗi frame và chọn hành động
+(Set, Bump, Jump, các cú đập, giao bóng), bằng cách **bắt chước** dữ liệu có nhãn từ người chơi và từ một
+chuyên gia viết bằng quy tắc. Model được xuất thành **một file header C++ thuần**, game gọi trực tiếp, không
+cần thư viện ML.
 
 ```text
-trạng thái game tại frame t  ──►  model  ──►  hành động (move, action) tại frame t
+trạng thái game (21 feature)  ──►  Random Forest  ──►  hành động  ──►  luật chặn an toàn  ──►  game
 ```
 
-Model sau khi train được export sang C/C++ và cắm vào game dưới dạng một Intent producer
-(`MLInputSystem`), thay thế cho `AIInputSystem` rule-based hiện tại.
+## Kết quả hiện tại
 
-- Kế hoạch thực hiện: [PLAN.md](PLAN.md)
-- **Quy trình làm việc** (branch, commit, check, thí nghiệm): [docs/workflow.md](docs/workflow.md)
-- Lý do các quyết định kỹ thuật: [docs/decisions/](docs/decisions/README.md)
-- Hợp đồng dữ liệu với repo game: [docs/data_contract.md](docs/data_contract.md)
-- Cách tích hợp model vào C++: [docs/integration.md](docs/integration.md)
-- Nhật ký thí nghiệm: [reports/experiments.md](reports/experiments.md)
+Model đang dùng trong game chính: **`selfplay_expert_v10` vòng 2** (từ 23/10/2026). Đo bằng 100 trận bot
+luật (sân trái) đấu bot ML (sân phải), chạy không cửa sổ:
 
----
+| Chỉ số | Bot ML |
+|---|---|
+| Trận thắng | **100 / 100** |
+| % điểm thắng | **80,3%** (1381 – 338) |
+| Điểm mất mỗi trận | 3,4 |
+| Lối chơi | Set → Jump → Spike, đập ngay khi bóng vào vùng detect (~62 lần/trận), Bump cứu bóng |
 
-## 1. Cài đặt
+Chưa đánh giá với người chơi thật. Tiến triển qua từng mốc và các kết quả âm:
+[reports/experiments.md](reports/experiments.md), [ADR-015](docs/decisions/adr-015-scoring-expert-dagger.md).
 
-Yêu cầu: Python 3.10+ (máy hiện có 3.11).
+## Cách hoạt động
+
+| Thành phần | Mô tả |
+|---|---|
+| **Dữ liệu** | Game ghi mỗi frame một dòng (schema v1: nhân vật, bóng, quỹ đạo, điểm số, phím bấm, loại cú chạm) vào `Logs/v1/*.csv` |
+| **Feature** | 21 feature tính lại được y hệt trong C++ (chỉ cộng/trừ, so sánh, lật sân qua lưới) – [`schema/feature_spec.v1.json`](schema/feature_spec.v1.json) |
+| **Nhãn** | Hành động của frame kế tiếp (`label_shift: 1`), vì game ghi log sau khi áp hành động – [ADR-011](docs/decisions/adr-011-label-leakage-from-logging-order.md) |
+| **Model** | Random Forest (100 cây), xuất sang header C++ có golden test so khớp Python – [ADR-002](docs/decisions/adr-002-custom-cpp-exporter.md) |
+| **Trong game** | Model chọn hành động và quyết có nhảy sau Set; vật lý chọn frame nhảy; luật chặn loại cú đập ra ngoài/đập lưới – [ADR-012](docs/decisions/adr-012-hybrid-model-decides-physics-times-jump.md) |
+| **Vòng tự học (DAgger)** | `MatchRunner` (bot vs bot không cửa sổ, ~1.000× thời gian thật) tự chơi, một nửa số lượt do chuyên gia quy tắc điều khiển → train lại → export → build → đo trên bộ trận mới → chỉ giữ model tốt hơn – [ADR-014](docs/decisions/adr-014-self-imitation-selfplay.md), [ADR-015](docs/decisions/adr-015-scoring-expert-dagger.md) |
+| **Đánh giá** | Chia dữ liệu theo trận/người chơi; đo offline đúng cách bot quyết định trong game ([ADR-013](docs/decisions/adr-013-evaluate-with-game-policy.md)); đo trong game trên bộ seed chưa dùng để chọn model |
+
+## Cài đặt
+
+Yêu cầu: Python 3.10+ (đang dùng 3.11), Windows. Vòng tự học cần thêm repo game và Visual Studio 2022 để build
+`MatchRunner`.
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate          # Windows (PowerShell / cmd)
-pip install -r requirements-dev.txt   # gồm requirements.txt + pytest, ruff, jupyter
-pip install -e .                      # để import được package spike_ai
-
-# kiểm tra mọi thứ hoạt động (ruff + pytest)
+.venv\Scripts\activate
+pip install -r requirements-dev.txt
+pip install -e .
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
-## 2. Chạy thử pipeline (vòng mỏng end-to-end)
+`check.ps1` chạy ruff và toàn bộ test (163 test). Phải PASS trước mỗi commit.
+
+## Cách dùng
 
 ```bash
-# 1) Copy log CSV từ repo game vào data/raw/v0
-python scripts/import_logs.py --src ../ProjectTotNghiep/Logs --dest data/raw/v0
+# Train theo một config (dữ liệu đọc thẳng từ Logs/v1 của repo game), lưu vào models/, ghi experiments.md
+python -m spike_ai.train --config configs/played_v1_aligned.yaml
 
-# 2) Xem nhanh dữ liệu: số trận, số dòng, phân bố nhãn
-python scripts/inspect_data.py --config configs/baseline_v0.yaml
-
-# 3) Train, đánh giá bằng cross-validation (v0 có ít trận), lưu vào models/, ghi vào reports/experiments.md
-#    (holdout được giữ kín; chỉ thêm --final khi đã chốt model — xem docs/workflow.md, ADR-004)
-python -m spike_ai.train --config configs/baseline_v0.yaml
-
-# 4) Đo theo ĐÚNG cách bot ra quyết định trong game (ngưỡng, rút thăm, luật chặn, luật nhảy),
-#    trên MỌI frame của các trận để riêng - con số này mới nói về con bot thật (ADR-013)
+# Đo offline theo đúng cách bot ra quyết định trong game (ngưỡng, rút thăm, luật chặn)
 python -m spike_ai.eval_policy --config configs/played_v1_aligned.yaml
 
-# 5) Đo bot TRONG GAME từ log trận (% điểm thắng, cú đập, đứng yên, bỏ lỡ bóng, Set/Jump, cách mất điểm)
+# Đo bot trong game từ log trận: % điểm, cú đập, Set/Bump/Jump, chuỗi Set->Jump->Spike, cách mất điểm
 python -m spike_ai.eval_ingame ../ProjectTotNghiep/Logs/v1/<trận>.csv
 
-# 5b) Vòng TỰ HỌC tự động: bot tự chơi (MatchRunner, không cửa sổ) -> train -> đo -> giữ model tốt hơn.
-#     Chuyên gia ghi điểm làm người dạy, xác nhận trên 2 bộ seed trước khi giữ (ADR-014, ADR-015).
-#     Model đang ở game chính: selfplay_expert_v3.
-python -m spike_ai.selfplay --config configs/selfplay_expert_v3.yaml --max-minutes 120
+# Vòng tự học với chuyên gia (cấu hình của model đang dùng); tối đa 90 phút
+python -m spike_ai.selfplay --config configs/selfplay_expert_v10.yaml --max-minutes 90
 
-# 5c) Đo lại model trên bộ trận MỚI (không dùng để chọn model) trước khi đưa vào game chính
-python scripts/eval_fresh_seeds.py --seed 400000 --model "v3=models/<run>/best/spike_ai_action_random_forest.h"
+# Đo lại một model trên bộ trận mới, không dùng để chọn model
+python scripts/eval_fresh_seeds.py --seed 400000 --model "v10=models/<run>/iter02/spike_ai_action_random_forest.h"
 
-# 6) Export model Decision Tree sang header C++ để cắm vào game
-python -m spike_ai.export_cpp --model models/<run>/move__decision_tree.joblib --out exports/
-
-# 7) Kiểm tra trước khi commit
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
+# Xuất model sang header C++ (kèm golden test)
+python -m spike_ai.export_cpp --model models/<run>/action__random_forest.joblib --out exports/
 ```
 
-> ⚠️ Log **v0** (format CSV hiện tại của game) **không có thông tin về bóng** nên model học từ nó
-> rất yếu. v0 chỉ dùng để chạy thông đường ống. Dữ liệu thật để học là **v1** — xem
-> [docs/data_contract.md](docs/data_contract.md).
+Đưa model mới vào game: làm theo checklist ở [docs/integration.md](docs/integration.md) (đo trên bộ trận mới,
+commit riêng ở repo game để revert được).
 
-## 3. Cấu trúc thư mục
+## Cấu trúc thư mục
 
 ```text
 ProjectTotNghiep-AI/
-├── PLAN.md                  # kế hoạch thực hiện theo giai đoạn
-├── WORKLOG.md               # việc đã xong + bằng chứng
-├── JOURNAL.md               # nhật ký tuần (dùng khi gặp giảng viên)
-├── AGENTS.md                # luật cho AI trợ lý viết code
-├── .github/workflows/ci.yml # CI: chạy scripts/check.sh trên develop/main
-├── configs/                 # cấu hình mỗi lần train (YAML) -> tái lập được thí nghiệm
-├── schema/                  # NGUỒN SỰ THẬT: cột log, enum, danh sách + thứ tự feature
-│   ├── legacy_v0.json       #   format CSV cũ của game
-│   └── feature_spec.v1.json #   format mới đề xuất cho game
-├── data/                    # KHÔNG commit (đã .gitignore)
-│   ├── raw/v0/              #   log CSV cũ copy từ game
-│   ├── raw/v1/bot|human/    #   log v1, tách theo nguồn điều khiển
-│   ├── raw/v1/human_holdout/ #  holdout tương lai: thu SAU khi chốt model
-│   └── processed/           #   dữ liệu đã clean / feature (parquet, csv)
-├── notebooks/               # EDA, thử nghiệm nhanh (đặt tên 01_eda.ipynb, 02_...)
-├── src/spike_ai/            # code chính (import được)
-│   ├── schema.py            #   đọc spec, nhận diện version, kiểm tra cột
-│   ├── data.py              #   đọc nhiều file CSV, gắn match_id
-│   ├── features.py          #   raw -> X (feature) + y (nhãn)  ← phải tái tạo được trong C++
-│   ├── split.py             #   chia theo HASH của trận/người chơi, CV (kfold/lopo), báo cáo cân bằng
-│   ├── models.py            #   danh sách model (majority, tree, forest, knn, ...)
-│   ├── evaluate.py          #   macro-F1 (chỉ lớp có mặt), support, confusion matrix
-│   ├── train.py             #   CLI train
-│   ├── policy.py            #   cách bot ra quyết định trong game, chép từ AIInputSystem.cpp
-│   ├── eval_policy.py       #   CLI đo theo policy đó trên mọi frame
-│   ├── eval_ingame.py       #   CLI đo bot trong game từ log trận (các chỉ số báo cáo)
-│   ├── selfplay.py          #   CLI vòng tự học tự động (gọi MatchRunner bên repo game)
-│   └── export_cpp.py        #   CLI export model -> header C++ + golden test
-├── scripts/                 # check.ps1/.sh (quality gate), import log, xem dữ liệu
-├── models/                  # model đã train (.joblib) — không commit, phát hành qua Releases
-├── exports/                 # file .h sinh ra để copy sang repo game
-├── reports/                 # experiments.md; results/<ngày>/ = kết quả đã chốt cho báo cáo
-├── docs/
-│   ├── workflow.md          #   quy trình làm việc (nguồn duy nhất)
-│   ├── data_contract.md     #   hợp đồng dữ liệu với repo game
-│   ├── integration.md       #   tích hợp model vào C++
-│   ├── decisions/           #   ADR
-│   └── plans/               #   template.md, active/, completed/
-└── tests/                   # pytest
+├── src/spike_ai/          # package chính
+│   ├── schema.py, data.py #   đọc spec, đọc log CSV / CSV.gz, gắn match_id
+│   ├── features.py        #   raw -> feature + nhãn (phải khớp C++)
+│   ├── split.py           #   chia theo hash trận/người chơi, k-fold, LOPO
+│   ├── models.py          #   majority, decision tree, random forest, ...
+│   ├── train.py           #   CLI train: lọc người dạy, trọng số, ghép nhãn
+│   ├── evaluate.py        #   macro-F1, confusion matrix
+│   ├── policy.py          #   cách bot ra quyết định trong game (chép từ AIInputSystem)
+│   ├── eval_policy.py     #   CLI đo offline theo policy đó
+│   ├── eval_ingame.py     #   CLI đo bot trong game từ log trận
+│   ├── selfplay.py        #   CLI vòng tự học (gọi MatchRunner bên repo game)
+│   └── export_cpp.py      #   CLI xuất model -> header C++ + golden test
+├── configs/               # YAML cho mỗi lần train / vòng tự học (tái lập được)
+├── schema/                # nguồn sự thật: cột log, enum, thứ tự feature
+├── scripts/               # check.ps1/.sh, công cụ dữ liệu, đo trên seed mới
+├── tests/                 # pytest
+├── docs/                  # workflow, hợp đồng dữ liệu, tích hợp C++, ADR
+├── reports/experiments.md # nhật ký mọi thí nghiệm, kể cả kết quả âm
+├── PLAN.md, WORKLOG.md, JOURNAL.md
+├── data/, models/, exports/   # không commit
 ```
 
-## 4. Quy trình làm việc
+## Tài liệu
 
-Xem [docs/workflow.md](docs/workflow.md). Tóm tắt:
+| Cần tìm | Ở đâu |
+|---|---|
+| Kế hoạch và tình trạng từng giai đoạn | [PLAN.md](PLAN.md) |
+| Việc đã xong kèm bằng chứng | [WORKLOG.md](WORKLOG.md) |
+| Quy trình làm việc (branch, commit, thí nghiệm) | [docs/workflow.md](docs/workflow.md) |
+| Hợp đồng dữ liệu với repo game | [docs/data_contract.md](docs/data_contract.md) |
+| Tích hợp model vào C++ | [docs/integration.md](docs/integration.md) |
+| Lý do các quyết định kỹ thuật (ADR-001 – 015) | [docs/decisions/](docs/decisions/README.md) |
+| Kết quả thí nghiệm | [reports/experiments.md](reports/experiments.md) |
+| Thay đổi phía game | repo game, `docs/ai-changes/README.md` (nhánh `feat/dong`) |
 
-- Nhánh `develop` là nơi làm việc chính, `main` chỉ nhận bản đã chốt (gắn tag). Mọi thay đổi đi qua
-  nhánh `feat/…`, `fix/…`, `exp/…` rồi mở PR vào `develop`.
-- `scripts/check.ps1` phải PASS trước mỗi commit. CI chạy lại đúng các bước đó.
-- Không commit dữ liệu và model. Schema là nguồn sự thật cho feature. Chia dữ liệu theo trận/người chơi.
-  Holdout chỉ đo khi đã chốt model.
+## Quy ước
+
+- Nhánh `develop` là nơi tích hợp, `main` nhận bản đã chốt. Mọi thay đổi đi qua nhánh `feat/…`, `fix/…`,
+  `exp/…`, `docs/…`.
+- Không commit dữ liệu, model, file export. Schema là nguồn sự thật cho feature.
+- Chia dữ liệu theo trận/người chơi, không theo frame. Không đọc holdout để chỉnh model.
+- Tài liệu viết bằng tiếng Việt. Luật cho AI trợ lý viết code: [AGENTS.md](AGENTS.md).

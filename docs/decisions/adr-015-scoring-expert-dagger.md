@@ -221,3 +221,31 @@ Repo game commit `d11ea0e` (nhánh `feat/scoring-expert`): `Source/AI/Generated/
 `selfplay_expert_v3_20261020-225201/best`, kèm luật chặn an toàn (`safeSpikeMask`, `safeRuleAttack`) và
 nhảy 31,4% sau Set (đo từ dữ liệu người chơi, ADR-012). Bot luật vs bot ML: 73-75% điểm, thắng 99-100/100
 trận. Game chính vẫn là người vs bot ML. **Chưa đo với người chơi thật** - việc tiếp theo của GĐ6.
+
+## 23/10/2026: model tự quyết nhảy, ép học đập ngay, model v10 vòng 2 vào game chính
+
+**Chỉ SpikeStrong trên không ghi điểm** (50 trận seed 1600000): chuyên gia 520/1105, bot ML 277/706; SpikeMedium
+trên không 0/2298; đập từ đất sau Set 0/6214. SpikeStrong chỉ vào sân khi Set cách lưới ≥ 430 px (Set gần hơn:
+0% chuỗi ghi điểm; xa hơn: 19-30%).
+
+**Model tự quyết nhảy** (repo game `--model-decides-jump`, ADR-012): sau cú Set, chỉ cần một frame model cho
+P(Jump) > 0,3 thì nhảy; vật lý vẫn chọn frame. Model v3 đã học nhảy từ chuyên gia nên không cần train lại:
+
+| Model v3 | rút thăm 31,4% | model tự quyết nhảy |
+|---|---|---|
+| seed 400000 (để dành) | 72,6% | **93,8%** |
+| seed 1000000 | 71,4% | **91,4%** |
+| trận thắng (100) | 95 | **100** |
+| chuỗi Set → Jump → Spike ghi điểm | 524 | **940** |
+
+**Đập ngay khi bóng vào vùng detect** (người dùng muốn lối chơi đa dạng):
+
+| Lần chạy | Cách làm | Kết quả |
+|---|---|---|
+| v8 | quy ước theo khoảng cách lưới (gần lưới: 60% đập ngay, 40% Set -> đập đất), `expert_kill_weight` 6 | 84,9 / 71,4 / 56,1% - bỏ |
+| v9 | chuyên gia đập ngay 20% (chỉ khi đối thủ không kịp đón), học chủ yếu pha ghi điểm | không học được đập ngay |
+| v10 | chuyên gia đập ngay 50%, `expert_quick_weight` 6 (dù không ghi điểm), `keep_all` | học được: 2.028-4.399 cú/50 trận, 71-83% điểm |
+
+**Chốt:** model **v10 vòng 2** (`selfplay_expert_v10_20261023-104538/iter02`) vào game chính, mặc định model
+tự quyết nhảy (repo game `2cc342c`). 100 trận seed 1000000 + 1100000: thắng **100/100**, **80,3%** điểm, đập
+ngay ~62 lần/trận. Chọn vì đa dạng hơn v3 (đập ngay ~0) dù thấp hơn ~12 điểm %. Quay lại v3: `git revert 2cc342c`.
