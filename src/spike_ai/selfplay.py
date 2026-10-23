@@ -214,11 +214,13 @@ def run(
         install_header(header, sp)
         build_runner(sp)
         cand = score_ml(sp, run_dir / "eval" / f"iter{it:02d}")
-        kept = decide(best["pct_diem_thang"], cand["pct_diem_thang"], float(sp.get("min_gain", 0.0)))
+        # keep_all: giữ model mọi vòng (chọn theo tiêu chí khác % điểm, vd lối chơi đa dạng), chọn tay sau.
+        kept = sp.get("keep_all", False) or decide(best["pct_diem_thang"], cand["pct_diem_thang"],
+                                                   float(sp.get("min_gain", 0.0)))
         cand_confirm = None
         if kept and confirm_sp:
             cand_confirm = score_ml(confirm_sp, run_dir / "eval" / f"iter{it:02d}_confirm")
-            kept = cand_confirm["pct_diem_thang"] >= best_confirm["pct_diem_thang"]
+            kept = sp.get("keep_all", False) or cand_confirm["pct_diem_thang"] >= best_confirm["pct_diem_thang"]
             new_pct, old_pct = cand_confirm["pct_diem_thang"], best_confirm["pct_diem_thang"]
             print(f"   bộ xác nhận: {new_pct:.1f}% (đang giữ {old_pct:.1f}%)")
         print(f"   model mới thắng {cand['pct_diem_thang']:.1f}% điểm (đang giữ {best['pct_diem_thang']:.1f}%) -> "

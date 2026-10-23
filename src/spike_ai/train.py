@@ -199,6 +199,36 @@ def kill_possession_mask(df: pd.DataFrame, agent: str) -> np.ndarray:
     return out
 
 
+def quick_spike_possession_mask(df: pd.DataFrame, agent: str) -> np.ndarray:
+    """Frame thuộc lượt cầm bóng mà cú chạm ĐẦU TIÊN của `agent` là cú đập (đập ngay, không Set).
+
+    Tính cả lượt không ghi điểm: dùng khi muốn bot học kiểu đập này để chơi đa dạng, không chỉ để thắng.
+    Lượt = từ ngay sau cú chạm cuối của đối thủ (hoặc đầu pha bóng) tới frame cú đập đó.
+    """
+    from .data import ENTITY_NONE, rebuild_kind_v1_to_v2
+
+    me = AGENT_ENTITY[agent]
+    out = np.zeros(len(df), dtype=bool)
+    for positions in df.groupby("match_id", sort=False).indices.values():
+        g = df.iloc[positions]
+        lt = g["rally_last_touch"].fillna(ENTITY_NONE).astype(int).to_numpy()
+        tc = g["rally_touch_count"].fillna(0).astype(int).to_numpy()
+        kind = (
+            g["rally_last_touch_kind"].fillna(0).astype(int).to_numpy()
+            if "rally_last_touch_kind" in g
+            else rebuild_kind_v1_to_v2(g).to_numpy()
+        )
+        touch = np.flatnonzero(np.r_[False, (lt[1:] != lt[:-1]) | (tc[1:] != tc[:-1])] & (lt != ENTITY_NONE))
+        prev_other = -1
+        for i in touch:
+            if lt[i] != me:
+                prev_other = i
+                continue
+            if tc[i] == 1 and kind[i] in SPIKE_KINDS:
+                out[positions[prev_other + 1 : i + 1]] = True
+    return out
+
+
 def won_rally_mask(df: pd.DataFrame, team: int) -> np.ndarray:
     """Frame nao thuoc mot pha bong (doan bong dang song) ma doi `team` THANG diem.
 
@@ -331,6 +361,17 @@ def build_rows(df: pd.DataFrame, version: str, agents, cfg: dict):
             # Trọng số theo người dạy (vd chuyên gia), ghi đè agent_weight cho đúng các dòng đó.
             for code, w in controller_weight.items():
                 weight[(controller == code).to_numpy()] = w
+            if cfg.get("expert_kill_weight") is not None and "expert" in controllers:
+                # Học CHỦ YẾU từ pha ghi điểm: lượt chuyên gia tự ghi điểm bằng cú đập (kill_possession_mask)
+                # có trọng số riêng, cao hơn các lượt chuyên gia còn lại (vẫn học, theo controller_weight).
+                kills = (controller == controllers["expert"]).to_numpy() & kill_possession_mask(df, agent)
+                weight[kills] = float(cfg["expert_kill_weight"])
+                notes.append(f"luot chuyen gia ghi diem x{cfg['expert_kill_weight']} {kills.sum():,}")
+            if cfg.get("expert_quick_weight") is not None and "expert" in controllers:
+                # Ép học ĐẬP NGAY: lượt chuyên gia đập ở cú chạm đầu được trọng số riêng DÙ không ghi điểm.
+                quick = (controller == controllers["expert"]).to_numpy() & quick_spike_possession_mask(df, agent)
+                weight[quick] = float(cfg["expert_quick_weight"])
+                notes.append(f"luot chuyen gia dap ngay x{cfg['expert_quick_weight']} {quick.sum():,}")
         if si and agent == si["agent"]:
             # Trong so RIENG cho dong tu hoc, khong nhan voi agent_weight (agent_weight cua san phai
             # danh cho frame nguoi gianh quyen DAgger, vd x20).

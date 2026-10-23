@@ -1,0 +1,52 @@
+# Ban v9 (23/10/2026): chuyen gia nhu v3 (Set -> Jump -> Spike) + DAP NGAY o ~20% luot (nguoi dung muon da
+# dang cach ghi diem), chi khi doi thu khong kip don (margin > 0). Model tu quyet nhay, hoc chu yeu luot ghi
+# diem (x6). Moc: v3 tu quyet nhay ~92%. Seed moi 2000000 / 2100000; de danh 400000.
+#
+run_name: selfplay_expert_v9
+schema: v1
+data_dirs:
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/v1
+  - F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+agent: [player, opponent]
+targets: [action]
+frames_around_action: 20
+label_shift: 1
+
+train_on_controllers: [human, expert]
+agent_weight:
+  opponent: 20          # frame nguoi gianh quyen DAgger nhu dagger_v1_w_aligned
+controller_weight:
+  expert: 1.0           # luot chuyen gia khong ghi diem: van hoc, trong so thuong
+expert_kill_weight: 6.0  # luot chuyen gia TU GHI DIEM: hoc chu yeu tu day
+
+split:
+  group_by: match
+  dev_mode: none        # fit 100% du lieu, ngang hang model xuat phat
+  dev_ratio: 0
+  holdout_ratio: 0
+  salt: spike-ai-split-v1
+seed: 42
+models:
+  random_forest:
+    n_estimators: 100
+    max_depth: 14
+    min_samples_leaf: 10
+
+selfplay:
+  game_dir: F:/DoAnTotNghiep/ProjectTotNghiep
+  runner: build/RelWithDebInfo/MatchRunner.exe
+  build_dir: build
+  vcvars: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat
+  auto_logs: F:/DoAnTotNghiep/ProjectTotNghiep/Logs/auto
+  iterations: 10
+  expert_prob: 0.5            # nua so luot cam bong do chuyen gia dieu khien khi tu choi
+  matches_per_iteration: 50
+  max_frames: 54000
+  eval_matches: 50
+  eval_seed: 2000000          # bo do chinh moi
+  confirm_seed: 2100000       # bo tran xac nhan (khac bo do chinh)
+  min_gain: 0.0
+  keep_last_iterations: 3     # du lieu chuyen gia cua 3 vong gan nhat
+  stop_after_rejections: 3
+  runner_args: ["--model-decides-jump", "1", "--expert-quick-spike", "0.2", "--expert-quick-min-margin", "0",
+                "--expert-ground-after-set", "0", "--expert-air-strong", "1"]

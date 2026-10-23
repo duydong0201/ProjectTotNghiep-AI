@@ -682,3 +682,26 @@ def test_expert_only_kills_drops_expert_possessions_that_did_not_score():
     with pytest.raises(ValueError, match="Khong con frame"):
         train_module.build_rows(df, "v1", ["opponent"], cfg)
 
+
+def test_expert_kill_weight_upweights_scoring_possessions_and_keeps_the_rest():
+    df = _kill_log()
+    df["o_controller"] = EXPERT
+    cfg = {"train_on_controllers": ["human", "expert"], "controller_weight": {"expert": 1}, "expert_kill_weight": 5}
+    rows, _, _ = train_module.build_rows(df, "v1", ["opponent"], cfg)
+    w = dict(zip(rows["frame"], rows["_weight"], strict=True))
+    assert w[5] == 5.0  # trong luot ghi diem (frame 3-9)
+    assert w[15] == 1.0  # ngoai luot ghi diem: van hoc, trong so thuong
+
+
+def test_quick_spike_possession_marks_first_touch_spikes_even_without_point():
+    df = _kill_log()
+    df.loc[5:, ["rally_last_touch", "rally_touch_count"]] = [3, 1]
+    df.loc[5:, "rally_last_touch_kind"] = 8  # cham dau cua bot phai la cu dap (khong Set)
+    df["score_right"] = 0  # khong ghi diem
+    m = train_module.quick_spike_possession_mask(df, "opponent")
+    assert np.flatnonzero(m).tolist() == list(range(3, 6))
+
+
+def test_set_then_spike_is_not_a_quick_spike():
+    assert not train_module.quick_spike_possession_mask(_kill_log(), "opponent").any()
+
