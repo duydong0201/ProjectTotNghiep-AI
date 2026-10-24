@@ -122,6 +122,50 @@ Báo cáo:
 
 ---
 
+## Định hướng phát triển: Hệ thống Bot AI đa cấp độ và đa phong cách chơi
+
+Model Machine Learning hiện tại, huấn luyện bằng Behavior Cloning (kết hợp DAgger với chuyên gia quy tắc),
+đã đạt hiệu quả cao: thắng bot Rule-based **100/100 trận** trong các thử nghiệm hiện tại (80,3% số điểm,
+model `selfplay_expert_v10` vòng 2 – ADR-015). Đây là bot có năng lực cao nhất trong hệ thống, nhưng **chưa
+được kiểm chứng đầy đủ với người chơi thật**.
+
+Hướng phát triển tiếp theo là xây dựng **một hệ thống gồm nhiều bot AI có trình độ và phong cách chơi khác
+nhau**, thay vì chỉ có một bot mạnh nhất:
+
+- **Đa dạng trình độ:** các bot từ cơ bản đến nâng cao, khác nhau về khả năng tấn công, phòng thủ, di chuyển
+  và phối hợp.
+- **Đa dạng phong cách:** bot thiên về tấn công, bot phòng thủ tốt, bot di chuyển linh hoạt, hoặc bot có những
+  điểm yếu chiến thuật nhất định.
+- **Hệ thống xếp hạng Elo:** dùng kết quả thi đấu để ước lượng trình độ tương đối của các bot, hỗ trợ phân cấp
+  và chọn đối thủ phù hợp.
+- **Cá nhân hoá trải nghiệm:** khi có người chơi mới với trình độ khác nhau, game chọn bot phù hợp để tạo ra
+  những trận đấu cân bằng và thú vị hơn.
+
+**Mục tiêu cuối cùng:** chuyển từ **một model AI tối ưu sức mạnh** sang **một hệ sinh thái bot AI** có nhiều cấp
+độ và phong cách, có thể đánh giá năng lực, phân loại trình độ và thích ứng với trải nghiệm của từng người chơi.
+
+> **Lưu ý kỹ thuật:** Elo chủ yếu đo **sức mạnh tương đối**, không tự xác định phong cách chơi. Để tạo ra bot có
+> phong cách riêng, cần thiết kế **dữ liệu huấn luyện, cách lấy mẫu hoặc mục tiêu huấn luyện** phù hợp cho từng
+> kiểu bot.
+
+### Cách làm dự kiến (tận dụng công cụ đã có)
+
+| Việc | Cách làm | Công cụ sẵn có |
+|---|---|---|
+| Bot nhiều trình độ | Lấy các model ở các mốc phát triển (`models/01_…` → `15_…`), và chỉnh độ "kỹ" lúc chạy: ngưỡng ra tay (`ACT_THRESHOLD`), temperature rút thăm, tỉ lệ model tự quyết nhảy | `models/README.md`, `RunMode`, `AIInputSystem` |
+| Bot nhiều phong cách | Đổi chuyên gia dạy (đập ngay / Set → Jump → Spike / thủ chắc), trọng số theo loại lượt, hoặc train theo dữ liệu một người chơi (`player_id`) | `ExpertDecide`, `expert_kill_weight`, `expert_quick_weight`, `controller_weight` |
+| Đo phong cách | Mô tả mỗi bot bằng thống kê lối chơi (tỉ lệ đập ngay, chuỗi Set → Jump → Spike, Bump, đứng yên, cách mất điểm); có thể phân cụm K-means | `spike_ai.eval_ingame` |
+| Xếp hạng Elo | Đấu vòng tròn giữa các bot bằng MatchRunner (không cửa sổ, ~1.000× thời gian thật, theo seed), cập nhật Elo sau mỗi trận | `MatchRunner.exe`, `spike_ai.selfplay` (build model riêng) |
+| Ghép đối thủ cho người chơi | Ước lượng Elo người chơi sau vài trận, chọn bot có Elo gần nhất; cập nhật dần theo kết quả | Log `Logs/v1` + Elo của bot |
+
+- [ ] Chọn 4–6 bot ở các trình độ / phong cách khác nhau, ghi cấu hình của từng bot
+- [ ] Viết script đấu vòng tròn + tính Elo (seed cố định, đủ trận cho mỗi cặp)
+- [ ] Bảng phong cách của từng bot từ `eval_ingame`
+- [ ] Chọn bot theo Elo trong game (menu chọn độ khó hoặc tự ghép)
+- [ ] Kiểm chứng với người chơi thật: trận có cân bằng hơn không, người chơi có thấy thú vị hơn không
+
+---
+
 ## Phụ thuộc vào bạn làm game
 
 | Việc | Cần trước | Ghi chú |
